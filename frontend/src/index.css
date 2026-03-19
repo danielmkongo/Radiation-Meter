@@ -1,0 +1,252 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Custom Properties ──────────────────────────────────────────────── */
+:root {
+  /* Light mode values */
+  --bg-page:      #f1f5f9;
+  --bg-card:      rgba(255,255,255,0.9);
+  --bg-surface:   #ffffff;
+  --bg-surface2:  #f8fafc;
+  --bg-surface3:  #e2e8f0;
+  --border-color: rgba(203,213,225,0.8);
+  --text-primary: #0f172a;
+  --text-secondary:#475569;
+  --text-muted:   #94a3b8;
+  --input-bg:     rgba(241,245,249,0.8);
+  --input-border: #cbd5e1;
+}
+
+.dark {
+  --bg-page:      #0f172a;
+  --bg-card:      rgba(30,41,59,0.6);
+  --bg-surface:   #1e293b;
+  --bg-surface2:  #0f172a;
+  --bg-surface3:  #334155;
+  --border-color: rgba(51,65,85,0.5);
+  --text-primary: #f1f5f9;
+  --text-secondary:#94a3b8;
+  --text-muted:   #64748b;
+  --input-bg:     rgba(51,65,85,0.5);
+  --input-border: #475569;
+}
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--bg-surface3) transparent;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg-surface3); border-radius: 9999px; }
+}
+
+@layer components {
+  .glass-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    backdrop-filter: blur(8px);
+    transition: border-color 0.15s ease, background-color 0.2s ease;
+  }
+
+  .stat-card {
+    @apply glass-card p-5;
+    transition: border-color 0.15s ease, background-color 0.2s ease;
+  }
+  .stat-card:hover {
+    border-color: rgba(14,165,233,0.3);
+  }
+
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-500 text-white font-medium px-4 py-2 rounded-lg
+           transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500/50
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    @apply font-medium px-4 py-2 rounded-lg transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-slate-400/30
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary:hover {
+    background-color: var(--bg-surface3);
+    color: var(--text-primary);
+  }
+
+  .input-field {
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-primary);
+    @apply w-full rounded-lg px-3 py-2.5
+           focus:outline-none focus:ring-2 focus:ring-primary-500/40
+           focus:border-primary-500/50 transition-all duration-150;
+  }
+  .input-field::placeholder { color: var(--text-muted); }
+
+  .badge-safe     { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-600 border border-emerald-500/20; }
+  .badge-warning  { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-600 border border-amber-500/20; }
+  .badge-critical { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/15 text-red-600 border border-red-500/20; }
+  .badge-info     { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary-500/15 text-primary-600 border border-primary-500/20; }
+  .badge-neutral  { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium; background-color: var(--bg-surface3); color: var(--text-secondary); border: 1px solid var(--border-color); }
+
+  .dark .badge-safe     { @apply text-emerald-400; }
+  .dark .badge-warning  { @apply text-amber-400; }
+  .dark .badge-critical { @apply text-red-400; }
+  .dark .badge-info     { @apply text-primary-400; }
+
+  .page-title {
+    color: var(--text-primary);
+    @apply text-xl font-semibold;
+  }
+
+  .section-title {
+    color: var(--text-muted);
+    @apply text-sm font-semibold uppercase tracking-wider;
+  }
+
+  .table-row {
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.1s;
+  }
+  .table-row:hover {
+    background-color: var(--bg-surface2);
+  }
+}
+
+/* Sidebar and header background */
+.app-sidebar {
+  background-color: var(--bg-surface);
+  border-right: 1px solid var(--border-color);
+  backdrop-filter: blur(8px);
+}
+
+.app-header {
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  backdrop-filter: blur(8px);
+}
+
+/* Nav link states */
+.nav-link { color: var(--text-secondary); }
+.nav-link:hover { color: var(--text-primary); background-color: var(--bg-surface2); }
+.nav-link.active { background-color: rgba(14,165,233,0.12); color: #0ea5e9; border: 1px solid rgba(14,165,233,0.2); }
+
+/* Text utilities driven by CSS vars */
+.text-page      { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted     { color: var(--text-muted); }
+
+/* Table header */
+.th-label { color: var(--text-muted); }
+
+/* ─── Light-mode overrides for residual Tailwind dark utility classes ──────── */
+/* These ensure Tailwind's surface/slate classes adapt when dark class is absent */
+
+html:not(.dark) .bg-surface-900,
+html:not(.dark) [class*="bg-slate-900"] { background-color: var(--bg-page) !important; }
+
+html:not(.dark) .bg-surface-800\/60,
+html:not(.dark) .bg-surface-800\/80,
+html:not(.dark) .bg-surface-800\/40,
+html:not(.dark) .bg-surface-800 { background-color: var(--bg-surface) !important; }
+
+html:not(.dark) .bg-surface-700\/60,
+html:not(.dark) .bg-surface-700\/50,
+html:not(.dark) .bg-surface-700\/40,
+html:not(.dark) .bg-surface-700\/30,
+html:not(.dark) .bg-surface-700\/20,
+html:not(.dark) .bg-surface-700 { background-color: var(--bg-surface2) !important; }
+
+html:not(.dark) .border-surface-700\/50,
+html:not(.dark) .border-surface-700\/30,
+html:not(.dark) .border-surface-700,
+html:not(.dark) .border-surface-600\/50,
+html:not(.dark) .border-surface-600 { border-color: var(--border-color) !important; }
+
+html:not(.dark) .text-slate-100,
+html:not(.dark) .text-slate-200 { color: var(--text-primary) !important; }
+
+html:not(.dark) .text-slate-300,
+html:not(.dark) .text-slate-400 { color: var(--text-secondary) !important; }
+
+html:not(.dark) .text-slate-500,
+html:not(.dark) .text-slate-600 { color: var(--text-muted) !important; }
+
+html:not(.dark) .divide-surface-700\/30 > * + * { border-color: var(--border-color) !important; }
+
+html:not(.dark) tr:hover td,
+html:not(.dark) .hover\:bg-surface-700\/20:hover,
+html:not(.dark) .hover\:bg-surface-700\/30:hover { background-color: var(--bg-surface2) !important; }
+
+/* Select / option in light mode */
+html:not(.dark) select option { background-color: var(--bg-surface); color: var(--text-primary); }
+
+/* Table cells and headers */
+html:not(.dark) th { color: var(--text-muted) !important; }
+html:not(.dark) td { color: var(--text-secondary) !important; }
+html:not(.dark) td.text-slate-200,
+html:not(.dark) td.font-medium { color: var(--text-primary) !important; }
+
+/* Checkboxes and form controls */
+html:not(.dark) input[type="checkbox"] {
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
+}
+
+/* Progress bar tracks */
+html:not(.dark) .h-2.rounded-full,
+html:not(.dark) .h-1\.5.rounded-full {
+  background-color: var(--bg-surface3) !important;
+}
+
+/* Code/mono text */
+html:not(.dark) .font-mono { color: var(--text-secondary) !important; }
+html:not(.dark) .text-primary-400 { color: #0284c7 !important; }
+
+/* Recharts tooltip */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 0.5rem !important;
+  color: var(--text-primary) !important;
+  font-size: 0.75rem !important;
+}
+
+/* Animated gradient for critical alerts */
+@keyframes pulseRed {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+  50%       { box-shadow: 0 0 0 4px rgba(239,68,68,0.15); }
+}
+.alert-critical-pulse {
+  animation: pulseRed 2s ease-in-out infinite;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fadeIn 0.2s ease-out; }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in { animation: slideIn 0.25s ease-out; }
