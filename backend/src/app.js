@@ -3,28 +3,27 @@ const express = require('express');
 const helmet  = require('helmet');
 const cors    = require('cors');
 const morgan  = require('morgan');
+const path    = require('path');
+const fs      = require('fs');
 
 const routes       = require('./routes/index');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
-// ─── Security headers ────────────────────────────────────────────────────────
-app.use(helmet());
+const FRONTEND_DIST = process.env.FRONTEND_DIST
+  || path.join(__dirname, '../../frontend/dist');
+const serveFrontend = fs.existsSync(FRONTEND_DIST);
 
-// ─── CORS ────────────────────────────────────────────────────────────────────
-const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:3000',
-];
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error(`CORS policy: Origin ${origin} not allowed`));
-  },
-  credentials: true,
+// ─── Security headers ────────────────────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: false, // allow Vite assets inline
 }));
+
+// ─── CORS (only needed in dev; same-origin in production) ────────────────────
+if (process.env.NODE_ENV !== 'production') {
+  app.use(cors({ origin: true, credentials: true }));
+}
 
 // ─── Request parsing ─────────────────────────────────────────────────────────
 app.use(express.json({ limit: '1mb' }));
@@ -43,10 +42,18 @@ app.get('/health', (req, res) => {
 // ─── API Routes ──────────────────────────────────────────────────────────────
 app.use('/api/v1', routes);
 
-// ─── 404 ─────────────────────────────────────────────────────────────────────
-app.use((req, res) => {
-  res.status(404).json({ success: false, message: `Route ${req.method} ${req.path} not found` });
-});
+// ─── Serve frontend (production) ─────────────────────────────────────────────
+if (serveFrontend) {
+  app.use(express.static(FRONTEND_DIST));
+  // SPA fallback — send index.html for any non-API route
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
+  });
+} else {
+  app.use((req, res) => {
+    res.status(404).json({ success: false, message: `Route ${req.method} ${req.path} not found` });
+  });
+}
 
 // ─── Global error handler ────────────────────────────────────────────────────
 app.use(errorHandler);
