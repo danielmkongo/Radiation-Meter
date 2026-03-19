@@ -53,10 +53,10 @@ export default function Dashboard() {
   if (role === 'radiologist') {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold text-slate-100">My Radiation Exposure</h2>
-            <p className="text-sm text-slate-500 mt-0.5">Card: {user.card_number} · {user.department}</p>
+            <h2 className="text-xl font-bold text-page">My Radiation Exposure</h2>
+            <p className="text-sm text-muted mt-0.5">Card: {user.card_number} · {user.department}</p>
           </div>
           <Badge variant={getDoseStatus(data.dose_summary?.annual?.value || 0)} className="text-sm px-3 py-1">
             {getDoseStatus(data.dose_summary?.annual?.value || 0).toUpperCase()}
@@ -116,16 +116,16 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-slate-100">
+        <h2 className="text-xl font-bold text-page">
           {role === 'regulator' ? 'Regulatory Overview' : role === 'hospital_manager' ? 'Facility Dashboard' : 'System Dashboard'}
         </h2>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <p className="text-sm text-muted mt-0.5">
           {user.hospital ? `${user.hospital} · ` : ''}{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <StatsCard
           title="Today's Total Dose"
           value={data.totals?.today?.toFixed(4) || '0.0000'}

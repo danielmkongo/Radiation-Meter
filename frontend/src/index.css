@@ -138,6 +138,19 @@
   backdrop-filter: blur(8px);
 }
 
+/* On desktop, sidebar is part of normal flow (not fixed) */
+@media (min-width: 1024px) {
+  .app-sidebar {
+    position: relative !important;
+    transform: none !important;
+  }
+}
+
+/* Prevent body scroll when mobile sidebar open */
+body.sidebar-open {
+  overflow: hidden;
+}
+
 .app-header {
   background-color: var(--bg-card);
   border-bottom: 1px solid var(--border-color);

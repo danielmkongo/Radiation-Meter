@@ -1,5 +1,5 @@
 import { useLocation, Link } from 'react-router-dom';
-import { Bell, LogOut, Sun, Moon } from 'lucide-react';
+import { Bell, LogOut, Sun, Moon, Menu } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { ROLE_LABELS } from '../../utils/constants';
@@ -9,13 +9,14 @@ const PAGE_TITLES = {
   '/exposure':  'Exposure Logs',
   '/alerts':    'Alerts',
   '/devices':   'Device Management',
+  '/hospitals': 'Hospitals',
   '/users':     'User Management',
   '/reports':   'Reports',
   '/audit':     'Audit Log',
   '/profile':   'My Profile',
 };
 
-export default function Header({ alertCount = 0 }) {
+export default function Header({ alertCount = 0, onMenuOpen }) {
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
   const { isDark, toggle } = useTheme();
@@ -23,15 +24,25 @@ export default function Header({ alertCount = 0 }) {
   const title = PAGE_TITLES[pathname] || 'RadiGuard';
 
   const btnClass = 'p-2 rounded-lg transition-colors';
-  const btnStyle = {
-    color: 'var(--text-muted)',
-  };
+  const btnStyle = { color: 'var(--text-muted)' };
 
   return (
-    <header className="app-header h-14 px-6 flex items-center justify-between sticky top-0 z-30">
-      <div>
-        <h1 className="font-semibold text-page">{title}</h1>
-        <p className="text-[11px] text-muted">{ROLE_LABELS[user?.role]}</p>
+    <header className="app-header h-14 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
+      <div className="flex items-center gap-3 min-w-0">
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={onMenuOpen}
+          className="lg:hidden p-2 rounded-lg transition-colors"
+          style={btnStyle}
+          aria-label="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <div className="min-w-0">
+          <h1 className="font-semibold text-page text-sm sm:text-base truncate">{title}</h1>
+          <p className="text-[11px] text-muted hidden sm:block">{ROLE_LABELS[user?.role]}</p>
+        </div>
       </div>
 
       <div className="flex items-center gap-1">
@@ -48,14 +59,10 @@ export default function Header({ alertCount = 0 }) {
         </button>
 
         {/* Alert bell */}
-        <Link
-          to="/alerts"
-          className={`${btnClass} relative`}
-          style={btnStyle}
-        >
+        <Link to="/alerts" className={`${btnClass} relative`} style={btnStyle}>
           <Bell className="w-4 h-4" />
           {alertCount > 0 && (
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2" style={{ ringColor: 'var(--bg-surface)' }} />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
           )}
         </Link>
 
