@@ -2,7 +2,7 @@ require('dotenv').config();
 const app = require('./app');
 const { getDb } = require('./config/database');
 
-const PORT = parseInt(process.env.PORT || '3003', 10);
+const PORT = parseInt(process.env.PORT || '5000', 10);
 
 // Initialize database on startup
 getDb();

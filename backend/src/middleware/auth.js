@@ -63,39 +63,4 @@ function requireSelfOrPrivileged(cardNumberParam = 'card_number') {
   };
 }
 
-/**
- * Hospital managers can only access their own hospital
- * Admins and regulators can access any hospital
- */
-function requireSameHospital(hospitalParam = 'hospital') {
-  return (req, res, next) => {
-    if (!req.user) return unauthorized(res);
-    const { role, hospital } = req.user;
-
-    // Admins and regulators have unrestricted access
-    if (['admin', 'regulator'].includes(role)) return next();
-
-    // Hospital managers can only access their own hospital
-    if (role === 'hospital_manager') {
-      if (!hospital) {
-        return forbidden(res, 'Hospital manager must be assigned to a hospital');
-      }
-
-      // Check hospital from query params, route params, or request body
-      const requestedHospital = 
-        req.params[hospitalParam] || 
-        req.query[hospitalParam] || 
-        req.body?.hospital;
-
-      if (requestedHospital && requestedHospital !== hospital) {
-        return forbidden(res, 'You can only manage your own hospital');
-      }
-      return next();
-    }
-
-    // Other roles cannot use this middleware
-    return forbidden(res, 'Insufficient permissions');
-  };
-}
-
-module.exports = { authenticate, requireRole, requireSelfOrPrivileged, requireSameHospital };
+module.exports = { authenticate, requireRole, requireSelfOrPrivileged };

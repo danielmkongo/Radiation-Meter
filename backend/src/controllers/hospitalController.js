@@ -1,28 +1,18 @@
 const { getDb } = require('../config/database');
-const { success, forbidden } = require('../utils/response');
+const { success } = require('../utils/response');
 
 function listHospitals(req, res) {
   const db = getDb();
 
-  // Hospital managers can only see their own hospital
-  let hospitalFilter = [];
-  if (req.user.role === 'hospital_manager') {
-    if (!req.user.hospital) {
-      return success(res, []);
-    }
-    hospitalFilter = [req.user.hospital];
-  } else {
-    // Admins and regulators see all hospitals
-    const names = db.prepare(`
-      SELECT hospital FROM devices WHERE hospital IS NOT NULL AND hospital != ''
-      UNION
-      SELECT hospital FROM users  WHERE hospital IS NOT NULL AND hospital != ''
-      ORDER BY hospital
-    `).all().map((r) => r.hospital);
-    hospitalFilter = names;
-  }
+  // Collect all distinct hospital names from both tables
+  const names = db.prepare(`
+    SELECT hospital FROM devices WHERE hospital IS NOT NULL AND hospital != ''
+    UNION
+    SELECT hospital FROM users  WHERE hospital IS NOT NULL AND hospital != ''
+    ORDER BY hospital
+  `).all().map((r) => r.hospital);
 
-  const hospitals = hospitalFilter.map((name) => {
+  const hospitals = names.map((name) => {
     const deviceCount = db.prepare(
       `SELECT COUNT(*) AS n FROM devices WHERE hospital = ? AND is_active = 1`
     ).get(name).n;
@@ -56,11 +46,6 @@ function listHospitals(req, res) {
 function getHospitalDetails(req, res) {
   const db = getDb();
   const name = decodeURIComponent(req.params.name);
-
-  // Hospital managers can only view their own hospital
-  if (req.user.role === 'hospital_manager' && req.user.hospital !== name) {
-    return forbidden(res, 'You can only view your own hospital');
-  }
 
   // Devices belonging to this hospital
   const devices = db.prepare(`

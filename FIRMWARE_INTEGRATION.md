@@ -25,7 +25,7 @@ The backend handles all threshold evaluation, anomaly detection, alerting, and r
 | Property | Value |
 |----------|-------|
 | Protocol | HTTP/1.1 (HTTPS in production) |
-| Base URL | `http://<server-host>:3003/api/v1` |
+| Base URL | `http://<server-host>:5000/api/v1` |
 | Content Type | `application/json` |
 | Auth Header | `X-API-Key: <device_api_key>` |
 | Primary Endpoint | `POST /exposure` |
@@ -243,7 +243,7 @@ Alternatively, implement a 25-minute keep-alive by submitting any queued reading
 // ── Provisioned per-device (store in NVS in production) ──────────────────────
 const char* DEVICE_ID  = "DEV-MNH-001";
 const char* API_KEY    = "rm_dev001apikey12345678901234";
-const char* SERVER_URL = "http://192.168.1.100:3003/api/v1/exposure";
+const char* SERVER_URL = "http://192.168.1.100:5000/api/v1/exposure";
 
 // ── WiFi credentials ─────────────────────────────────────────────────────────
 const char* WIFI_SSID = "HospitalWifi";
@@ -388,7 +388,7 @@ To update the firmware version field, the administrator uses the management dash
 ## 15. Quick Reference
 
 ```
-Endpoint  : POST http://<host>:3003/api/v1/exposure
+Endpoint  : POST http://<host>:5000/api/v1/exposure
 Auth      : X-API-Key: <api_key>
 Body      : { device_id, card_number, radiation_value, timestamp }
 Unit      : mSv (millisieverts)

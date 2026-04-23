@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../config/database');
-const { success, created, error, notFound, paginated, forbidden } = require('../utils/response');
+const { success, created, error, notFound, paginated } = require('../utils/response');
 const audit = require('../services/auditService');
 const { ROLES } = require('../config/constants');
 
@@ -16,20 +16,8 @@ function listUsers(req, res) {
   let where = ['1=1'];
   const params = [];
 
-  // Hospital managers can only see users in their hospital
-  if (req.user.role === 'hospital_manager') {
-    if (!req.user.hospital) {
-      return paginated(res, [], { page: parseInt(page), limit: parseInt(limit), total: 0, pages: 0 });
-    }
-    where.push('hospital = ?');
-    params.push(req.user.hospital);
-  } else if (hospital) {
-    // Admins and regulators can filter by hospital
-    where.push('hospital = ?');
-    params.push(hospital);
-  }
-
   if (role) { where.push('role = ?'); params.push(role); }
+  if (hospital) { where.push('hospital = ?'); params.push(hospital); }
   if (search) {
     where.push('(full_name LIKE ? OR email LIKE ? OR card_number LIKE ?)');
     const s = `%${search}%`;
@@ -52,12 +40,6 @@ function getUser(req, res) {
     .prepare('SELECT id, full_name, email, card_number, role, department, hospital, is_active, created_at FROM users WHERE id = ?')
     .get(req.params.id);
   if (!user) return notFound(res, 'User not found');
-
-  // Hospital managers can only view users in their hospital
-  if (req.user.role === 'hospital_manager' && req.user.hospital !== user.hospital) {
-    return forbidden(res, 'You can only view users in your hospital');
-  }
-
   return success(res, user);
 }
 
@@ -100,38 +82,18 @@ function updateUser(req, res) {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
   if (!user) return notFound(res, 'User not found');
 
-  // Hospital managers can only update users in their hospital
-  if (req.user.role === 'hospital_manager' && req.user.hospital !== user.hospital) {
-    return forbidden(res, 'You can only update users in your hospital');
-  }
-
   const { full_name, email, role, department, hospital, is_active, password } = req.body;
 
   if (role && !VALID_ROLES.includes(role)) {
     return error(res, `Role must be one of: ${VALID_ROLES.join(', ')}`);
   }
 
-  // Hospital managers cannot change the hospital or role of users
-  let finalRole = role ?? user.role;
-  let finalHospital = hospital !== undefined ? hospital : user.hospital;
-
-  if (req.user.role === 'hospital_manager') {
-    if (role && role !== user.role) {
-      return error(res, 'Hospital managers cannot change user roles', 400);
-    }
-    if (hospital !== undefined && hospital !== user.hospital) {
-      return error(res, 'Hospital managers cannot change user hospital', 400);
-    }
-    finalRole = user.role;
-    finalHospital = user.hospital;
-  }
-
   const updates = {
     full_name: full_name ?? user.full_name,
     email: email ? email.toLowerCase().trim() : user.email,
-    role: finalRole,
+    role: role ?? user.role,
     department: department !== undefined ? department : user.department,
-    hospital: finalHospital,
+    hospital: hospital !== undefined ? hospital : user.hospital,
     is_active: is_active !== undefined ? (is_active ? 1 : 0) : user.is_active,
     password_hash: password ? bcrypt.hashSync(password, BCRYPT_ROUNDS) : user.password_hash,
   };
@@ -148,14 +110,9 @@ function updateUser(req, res) {
 
 function deleteUser(req, res) {
   const db = getDb();
-  const user = db.prepare('SELECT id, email, hospital FROM users WHERE id = ?').get(req.params.id);
+  const user = db.prepare('SELECT id, email FROM users WHERE id = ?').get(req.params.id);
   if (!user) return notFound(res, 'User not found');
   if (user.id === req.user.id) return error(res, 'Cannot delete your own account');
-
-  // Hospital managers can only delete users in their hospital
-  if (req.user.role === 'hospital_manager' && req.user.hospital !== user.hospital) {
-    return forbidden(res, 'You can only delete users in your hospital');
-  }
 
   db.prepare('UPDATE users SET is_active=0, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.params.id);
   audit.log({ userId: req.user.id, userEmail: req.user.email, action: 'DELETE_USER', resourceType: 'user', resourceId: req.params.id, req });
