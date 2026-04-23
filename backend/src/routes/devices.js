@@ -7,9 +7,9 @@ router.use(authenticate);
 router.get('/',                  listDevices);
 router.get('/:id',               getDevice);
 router.get('/:id/users',         getDeviceUsers);
-router.post('/',                 requireRole('admin'), createDevice);
-router.put('/:id',               requireRole('admin'), updateDevice);
-router.post('/:id/regenerate-key', requireRole('admin'), regenerateApiKey);
-router.delete('/:id',            requireRole('admin'), deleteDevice);
+router.post('/',                 requireRole('admin', 'hospital_manager'), createDevice);
+router.put('/:id',               requireRole('admin', 'hospital_manager'), updateDevice);
+router.post('/:id/regenerate-key', requireRole('admin', 'hospital_manager'), regenerateApiKey);
+router.delete('/:id',            requireRole('admin', 'hospital_manager'), deleteDevice);
 
 module.exports = router;

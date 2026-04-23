@@ -1,0 +1,31 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+**/node_modules/
+
+# ─── Environment files (NEVER commit these) ──────────────────────────────────
+.env
+.env.local
+.env.production
+.env.*
+backend/.env
+
+# ─── Database (lives on the server only) ─────────────────────────────────────
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+
+# ─── Frontend build output ───────────────────────────────────────────────────
+frontend/dist/
+frontend/.vite/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
