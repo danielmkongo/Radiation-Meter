@@ -63,4 +63,36 @@ function requireSelfOrPrivileged(cardNumberParam = 'card_number') {
   };
 }
 
-module.exports = { authenticate, requireRole, requireSelfOrPrivileged };
+/**
+ * Hospital manager isolation middleware
+ * Hospital managers can only access their own hospital's data
+ * Automatically filters results to the manager's hospital
+ */
+function enforceHospitalIsolation(req, res, next) {
+  if (!req.user) return unauthorized(res);
+  
+  // Only enforce for hospital_manager role
+  if (req.user.role !== 'admin' && req.user.role !== 'regulator') {
+    if (!req.user.hospital) {
+      return forbidden(res, 'Hospital manager must be assigned to a hospital');
+    }
+    
+    // Force hospital filter in query
+    req.user.hospitalFilter = req.user.hospital;
+    
+    // If a hospital parameter is provided and it differs from user's hospital, deny access
+    const requestedHospital = req.query.hospital || req.body.hospital;
+    if (requestedHospital && requestedHospital !== req.user.hospital) {
+      return forbidden(res, 'You can only manage your assigned hospital');
+    }
+    
+    // Auto-set hospital to their assigned hospital
+    if (req.body) {
+      req.body.hospital = req.user.hospital;
+    }
+  }
+  
+  next();
+}
+
+module.exports = { authenticate, requireRole, requireSelfOrPrivileged, enforceHospitalIsolation };

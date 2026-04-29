@@ -19,7 +19,16 @@ function listDevices(req, res) {
 
   let where = ['1=1'];
   const params = [];
-  if (hospital) { where.push('hospital = ?'); params.push(hospital); }
+  
+  // Hospital manager can only see their own hospital's devices
+  if (req.user.role === 'hospital_manager' && req.user.hospital) {
+    where.push('hospital = ?');
+    params.push(req.user.hospital);
+  } else if (hospital) {
+    where.push('hospital = ?');
+    params.push(hospital);
+  }
+  
   if (search) {
     where.push('(device_id LIKE ? OR name LIKE ? OR location LIKE ?)');
     const s = `%${search}%`;
@@ -43,6 +52,12 @@ function getDevice(req, res) {
     'SELECT id, device_id, name, location, hospital, last_seen, firmware_version, is_active, created_at FROM devices WHERE id = ?'
   ).get(req.params.id);
   if (!device) return notFound(res, 'Device not found');
+  
+  // Hospital manager can only view their own hospital's devices
+  if (req.user.role === 'hospital_manager' && device.hospital !== req.user.hospital) {
+    return notFound(res, 'Device not found');
+  }
+  
   return success(res, { ...device, status: computeDeviceStatus(device.last_seen) });
 }
 
@@ -78,14 +93,23 @@ function updateDevice(req, res) {
   const db = getDb();
   const device = db.prepare('SELECT * FROM devices WHERE id = ?').get(req.params.id);
   if (!device) return notFound(res, 'Device not found');
+  
+  // Hospital manager can only update their own hospital's devices
+  if (req.user.role === 'hospital_manager' && device.hospital !== req.user.hospital) {
+    return notFound(res, 'Device not found');
+  }
 
   const { name, location, hospital, firmware_version, is_active } = req.body;
+  
+  // Hospital manager cannot change hospital assignment
+  const finalHospital = req.user.role === 'hospital_manager' ? device.hospital : (hospital !== undefined ? hospital : device.hospital);
+  
   db.prepare(
     `UPDATE devices SET name=?, location=?, hospital=?, firmware_version=?, is_active=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
   ).run(
     name ?? device.name,
     location ?? device.location,
-    hospital !== undefined ? hospital : device.hospital,
+    finalHospital,
     firmware_version ?? device.firmware_version,
     is_active !== undefined ? (is_active ? 1 : 0) : device.is_active,
     req.params.id
@@ -100,6 +124,11 @@ function regenerateApiKey(req, res) {
   const db = getDb();
   const device = db.prepare('SELECT * FROM devices WHERE id = ?').get(req.params.id);
   if (!device) return notFound(res, 'Device not found');
+  
+  // Hospital manager can only regenerate keys for their own hospital's devices
+  if (req.user.role === 'hospital_manager' && device.hospital !== req.user.hospital) {
+    return notFound(res, 'Device not found');
+  }
 
   const api_key = `rm_${uuidv4().replace(/-/g, '')}`;
   db.prepare('UPDATE devices SET api_key=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(api_key, req.params.id);
@@ -109,8 +138,14 @@ function regenerateApiKey(req, res) {
 
 function deleteDevice(req, res) {
   const db = getDb();
-  const device = db.prepare('SELECT id, device_id FROM devices WHERE id = ?').get(req.params.id);
+  const device = db.prepare('SELECT id, device_id, hospital FROM devices WHERE id = ?').get(req.params.id);
   if (!device) return notFound(res, 'Device not found');
+  
+  // Hospital manager can only delete their own hospital's devices
+  if (req.user.role === 'hospital_manager' && device.hospital !== req.user.hospital) {
+    return notFound(res, 'Device not found');
+  }
+  
   db.prepare('UPDATE devices SET is_active=0, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.params.id);
   audit.log({ userId: req.user.id, userEmail: req.user.email, action: 'DELETE_DEVICE', resourceType: 'device', resourceId: device.device_id, req });
   return success(res, null, 'Device deactivated');
@@ -118,8 +153,13 @@ function deleteDevice(req, res) {
 
 function getDeviceUsers(req, res) {
   const db = getDb();
-  const device = db.prepare('SELECT device_id FROM devices WHERE id = ?').get(req.params.id);
+  const device = db.prepare('SELECT device_id, hospital FROM devices WHERE id = ?').get(req.params.id);
   if (!device) return notFound(res, 'Device not found');
+  
+  // Hospital manager can only view users for their own hospital's devices
+  if (req.user.role === 'hospital_manager' && device.hospital !== req.user.hospital) {
+    return notFound(res, 'Device not found');
+  }
 
   const users = db.prepare(`
     SELECT
