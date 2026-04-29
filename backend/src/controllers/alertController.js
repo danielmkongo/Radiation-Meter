@@ -13,6 +13,10 @@ function listAlerts(req, res) {
   if (role === 'radiologist') {
     where.push('a.card_number = ?');
     params.push(userCard);
+  } else if (role === 'hospital_manager' && req.user.hospital) {
+    where.push('(u.hospital = ? OR (a.card_number IS NULL AND d.hospital = ?))');
+    params.push(req.user.hospital, req.user.hospital);
+    if (card_number) { where.push('a.card_number = ?'); params.push(card_number); }
   } else if (card_number) {
     where.push('a.card_number = ?');
     params.push(card_number);
@@ -27,11 +31,14 @@ function listAlerts(req, res) {
   }
 
   const whereClause = where.join(' AND ');
-  const total = db.prepare(`SELECT COUNT(*) as n FROM alerts a WHERE ${whereClause}`).get(...params).n;
+  const total = db.prepare(
+    `SELECT COUNT(*) as n FROM alerts a LEFT JOIN users u ON u.card_number=a.card_number LEFT JOIN devices d ON d.device_id=a.device_id WHERE ${whereClause}`
+  ).get(...params).n;
   const alerts = db.prepare(
-    `SELECT a.*, u.full_name, u.email, u.department
+    `SELECT a.*, u.full_name, u.email, u.department, u.hospital
      FROM alerts a
      LEFT JOIN users u ON u.card_number = a.card_number
+     LEFT JOIN devices d ON d.device_id = a.device_id
      WHERE ${whereClause}
      ORDER BY a.created_at DESC LIMIT ? OFFSET ?`
   ).all(...params, parseInt(limit), offset);
@@ -41,9 +48,14 @@ function listAlerts(req, res) {
 
 function getAlert(req, res) {
   const db = getDb();
-  const alert = db.prepare('SELECT * FROM alerts WHERE id = ?').get(req.params.id);
+  const alert = db.prepare(
+    `SELECT a.*, u.hospital FROM alerts a LEFT JOIN users u ON u.card_number=a.card_number WHERE a.id=?`
+  ).get(req.params.id);
   if (!alert) return notFound(res, 'Alert not found');
   if (req.user.role === 'radiologist' && alert.card_number !== req.user.card_number) {
+    return forbidden(res);
+  }
+  if (req.user.role === 'hospital_manager' && alert.card_number && alert.hospital !== req.user.hospital) {
     return forbidden(res);
   }
   return success(res, alert);
@@ -51,10 +63,15 @@ function getAlert(req, res) {
 
 function acknowledgeAlert(req, res) {
   const db = getDb();
-  const alert = db.prepare('SELECT * FROM alerts WHERE id = ?').get(req.params.id);
+  const alert = db.prepare(
+    `SELECT a.*, u.hospital FROM alerts a LEFT JOIN users u ON u.card_number=a.card_number WHERE a.id=?`
+  ).get(req.params.id);
   if (!alert) return notFound(res, 'Alert not found');
 
   if (req.user.role === 'radiologist' && alert.card_number !== req.user.card_number) {
+    return forbidden(res);
+  }
+  if (req.user.role === 'hospital_manager' && alert.card_number && alert.hospital !== req.user.hospital) {
     return forbidden(res);
   }
 
@@ -73,6 +90,9 @@ function getUnreadCount(req, res) {
   if (role === 'radiologist') {
     query = `SELECT COUNT(*) as n, type FROM alerts WHERE card_number = ? AND is_acknowledged = 0 GROUP BY type`;
     params = [card_number];
+  } else if (role === 'hospital_manager' && req.user.hospital) {
+    query = `SELECT COUNT(*) as n, a.type FROM alerts a LEFT JOIN users u ON u.card_number=a.card_number LEFT JOIN devices d ON d.device_id=a.device_id WHERE a.is_acknowledged=0 AND (u.hospital=? OR (a.card_number IS NULL AND d.hospital=?)) GROUP BY a.type`;
+    params = [req.user.hospital, req.user.hospital];
   } else {
     query = `SELECT COUNT(*) as n, type FROM alerts WHERE is_acknowledged = 0 GROUP BY type`;
     params = [];

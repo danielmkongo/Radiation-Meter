@@ -88,10 +88,14 @@ function listExposure(req, res) {
   let where = ['el.is_deleted = 0'];
   const params = [];
 
-  // Radiologists can only see their own data
+  // Radiologists can only see their own data; managers scoped to their hospital
   if (role === 'radiologist') {
     where.push('el.card_number = ?');
     params.push(userCard);
+  } else if (role === 'hospital_manager' && req.user.hospital) {
+    where.push('u.hospital = ?');
+    params.push(req.user.hospital);
+    if (card_number) { where.push('el.card_number = ?'); params.push(card_number.toUpperCase().trim()); }
   } else if (card_number) {
     where.push('el.card_number = ?');
     params.push(card_number.toUpperCase().trim());
@@ -123,7 +127,7 @@ function listExposure(req, res) {
 function getExposureById(req, res) {
   const db = getDb();
   const log = db.prepare(
-    `SELECT el.*, u.full_name, d.name as device_name, d.location
+    `SELECT el.*, u.full_name, u.hospital, d.name as device_name, d.location
      FROM exposure_logs el
      LEFT JOIN users u ON u.card_number = el.card_number
      LEFT JOIN devices d ON d.device_id = el.device_id
@@ -131,8 +135,10 @@ function getExposureById(req, res) {
   ).get(req.params.id);
   if (!log) return notFound(res, 'Exposure record not found');
 
-  // Radiologists can only view their own
   if (req.user.role === 'radiologist' && log.card_number !== req.user.card_number) {
+    return forbidden(res, 'Access denied');
+  }
+  if (req.user.role === 'hospital_manager' && log.hospital !== req.user.hospital) {
     return forbidden(res, 'Access denied');
   }
   return success(res, log);
@@ -177,6 +183,10 @@ function getExposureSummary(req, res) {
 
   const user = db.prepare('SELECT full_name, card_number, department, hospital FROM users WHERE card_number = ?').get(card_number);
   if (!user) return notFound(res, 'User not found');
+
+  if (req.user.role === 'hospital_manager' && user.hospital !== req.user.hospital) {
+    return forbidden(res, 'Access denied');
+  }
 
   const { getDoseSummary } = require('../services/thresholdService');
   const summary = getDoseSummary(card_number);

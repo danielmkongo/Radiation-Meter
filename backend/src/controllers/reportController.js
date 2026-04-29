@@ -11,9 +11,15 @@ function generateCsvReport(req, res) {
   }
 
   let where = [`el.timestamp >= '${start_date}'`, `el.timestamp <= '${end_date}'`, 'el.is_deleted=0'];
-  if (card_number) where.push(`el.card_number = '${card_number.toUpperCase().replace(/'/g,"''")}'`);
-  if (hospital && req.user.role !== 'radiologist') where.push(`u.hospital = '${hospital.replace(/'/g,"''")}'`);
-  if (req.user.role === 'radiologist') where.push(`el.card_number = '${req.user.card_number}'`);
+  if (req.user.role === 'radiologist') {
+    where.push(`el.card_number = '${req.user.card_number}'`);
+  } else if (req.user.role === 'hospital_manager' && req.user.hospital) {
+    where.push(`u.hospital = '${req.user.hospital.replace(/'/g, "''")}'`);
+    if (card_number) where.push(`el.card_number = '${card_number.toUpperCase().replace(/'/g,"''")}'`);
+  } else {
+    if (card_number) where.push(`el.card_number = '${card_number.toUpperCase().replace(/'/g,"''")}'`);
+    if (hospital) where.push(`u.hospital = '${hospital.replace(/'/g,"''")}'`);
+  }
 
   const rows = db.prepare(`
     SELECT el.id, el.card_number, u.full_name, u.department, u.hospital,
@@ -52,13 +58,17 @@ function generateComplianceSummary(req, res) {
   const yearStart = new Date(); yearStart.setMonth(0,1); yearStart.setHours(0,0,0,0);
   const now = new Date().toISOString();
 
+  const hospitalFilter = (req.user.role === 'hospital_manager' && req.user.hospital)
+    ? `AND u.hospital = '${req.user.hospital.replace(/'/g, "''")}'`
+    : '';
+
   const users = db.prepare(`
     SELECT u.card_number, u.full_name, u.department, u.hospital, u.email,
            COALESCE(SUM(el.radiation_value), 0) as annual_dose
     FROM users u
     LEFT JOIN exposure_logs el ON el.card_number = u.card_number
       AND el.timestamp >= ? AND el.is_deleted = 0
-    WHERE u.role = 'radiologist' AND u.is_active = 1
+    WHERE u.role = 'radiologist' AND u.is_active = 1 ${hospitalFilter}
     GROUP BY u.card_number
     ORDER BY annual_dose DESC
   `).all(yearStart.toISOString());
