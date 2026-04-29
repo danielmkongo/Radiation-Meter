@@ -75,8 +75,19 @@ function getRadiologistDashboard(db, cardNumber, periods, res) {
 function getGlobalDashboard(db, role, hospital, periods, res) {
   const { now, todayStart, weekStart, monthStart, yearStart } = periods;
 
-  // For hospital_manager, scope to their hospital
-  const hospitalFilter = (role === 'hospital_manager' && hospital) ? `AND u.hospital = '${hospital.replace(/'/g,"''")}'` : '';
+  const isManager = role === 'hospital_manager' && hospital;
+  const h = isManager ? hospital.replace(/'/g, "''") : null;
+
+  // For queries that JOIN users u — uses the 'u' alias
+  const hospitalFilter = isManager ? `AND u.hospital = '${h}'` : '';
+  // For direct queries on the users table (no alias)
+  const userHospitalFilter = isManager ? `AND hospital = '${h}'` : '';
+  // For direct queries on the devices table (no alias)
+  const deviceHospitalFilter = isManager ? `AND hospital = '${h}'` : '';
+  // For alert queries that JOIN both users u and devices d
+  const alertHospitalFilter = isManager
+    ? `AND (u.hospital = '${h}' OR (a.card_number IS NULL AND d.hospital = '${h}'))`
+    : '';
 
   // Total exposure today / week / month
   const todayDose   = db.prepare(`SELECT COALESCE(SUM(el.radiation_value),0) as total FROM exposure_logs el LEFT JOIN users u ON u.card_number=el.card_number WHERE el.timestamp>=? AND el.is_deleted=0 ${hospitalFilter}`).get(todayStart.toISOString()).total;
@@ -84,17 +95,17 @@ function getGlobalDashboard(db, role, hospital, periods, res) {
   const monthDose   = db.prepare(`SELECT COALESCE(SUM(el.radiation_value),0) as total FROM exposure_logs el LEFT JOIN users u ON u.card_number=el.card_number WHERE el.timestamp>=? AND el.is_deleted=0 ${hospitalFilter}`).get(monthStart.toISOString()).total;
 
   // Active/total users (radiologists)
-  const totalUsers  = db.prepare(`SELECT COUNT(*) as n FROM users WHERE role='radiologist' AND is_active=1 ${hospitalFilter.replace('el.','u.')}`).get().n;
+  const totalUsers  = db.prepare(`SELECT COUNT(*) as n FROM users WHERE role='radiologist' AND is_active=1 ${userHospitalFilter}`).get().n;
 
-  // Active devices
-  const allDevices = db.prepare('SELECT device_id, last_seen FROM devices WHERE is_active=1').all();
+  // Active devices — scoped to manager's hospital
+  const allDevices = db.prepare(`SELECT device_id, last_seen FROM devices WHERE is_active=1 ${deviceHospitalFilter}`).all();
   const devStatus = { online: 0, stale: 0, offline: 0 };
   allDevices.forEach(d => devStatus[getDeviceStatus(d.last_seen)]++);
 
-  // Unacknowledged alerts
-  const criticalAlerts = db.prepare(`SELECT COUNT(*) as n FROM alerts WHERE type='critical' AND is_acknowledged=0`).get().n;
-  const warningAlerts  = db.prepare(`SELECT COUNT(*) as n FROM alerts WHERE type='warning'  AND is_acknowledged=0`).get().n;
-  const recentAlerts   = db.prepare(`SELECT a.*, u.full_name FROM alerts a LEFT JOIN users u ON u.card_number=a.card_number ORDER BY created_at DESC LIMIT 10`).all();
+  // Unacknowledged alerts — scoped to manager's hospital via user/device join
+  const criticalAlerts = db.prepare(`SELECT COUNT(*) as n FROM alerts a LEFT JOIN users u ON u.card_number=a.card_number LEFT JOIN devices d ON d.device_id=a.device_id WHERE a.type='critical' AND a.is_acknowledged=0 ${alertHospitalFilter}`).get().n;
+  const warningAlerts  = db.prepare(`SELECT COUNT(*) as n FROM alerts a LEFT JOIN users u ON u.card_number=a.card_number LEFT JOIN devices d ON d.device_id=a.device_id WHERE a.type='warning'  AND a.is_acknowledged=0 ${alertHospitalFilter}`).get().n;
+  const recentAlerts   = db.prepare(`SELECT a.*, u.full_name FROM alerts a LEFT JOIN users u ON u.card_number=a.card_number LEFT JOIN devices d ON d.device_id=a.device_id WHERE 1=1 ${alertHospitalFilter} ORDER BY a.created_at DESC LIMIT 10`).all();
 
   // Top exposure users (annual)
   const topUsers = db.prepare(`
@@ -122,6 +133,7 @@ function getGlobalDashboard(db, role, hospital, periods, res) {
     SELECT el.card_number, u.full_name, u.department, u.hospital, SUM(el.radiation_value) as annual_dose
     FROM exposure_logs el JOIN users u ON u.card_number=el.card_number
     WHERE el.timestamp >= ? AND el.is_deleted=0 AND u.role='radiologist'
+    ${hospitalFilter}
     GROUP BY el.card_number
     HAVING annual_dose >= ?
   `).all(yearStart.toISOString(), DOSE_LIMITS.ANNUAL_WARNING);
@@ -134,6 +146,7 @@ function getGlobalDashboard(db, role, hospital, periods, res) {
            AVG(el.radiation_value) as avg_dose
     FROM exposure_logs el JOIN users u ON u.card_number=el.card_number
     WHERE el.timestamp >= ? AND el.is_deleted=0
+    ${hospitalFilter}
     GROUP BY u.department, u.hospital ORDER BY total_dose DESC
   `).all(monthStart.toISOString());
 
@@ -157,15 +170,17 @@ function getGlobalDashboard(db, role, hospital, periods, res) {
 // Exposure chart data for a specific user or system
 function getChartData(req, res) {
   const db = getDb();
-  const { card_number, period = '30d', granularity = 'day' } = req.query;
+  const { card_number, period = '30d' } = req.query;
 
   const periodMap = { '7d': 7, '30d': 30, '90d': 90, '1y': 365 };
   const days = periodMap[period] || 30;
 
   // Restrict radiologists to their own card
   const targetCard = req.user.role === 'radiologist' ? req.user.card_number : (card_number || null);
-
   const cardFilter = targetCard ? `AND el.card_number = '${targetCard.replace(/'/g,"''")}'` : '';
+
+  const isManager = req.user.role === 'hospital_manager' && req.user.hospital;
+  const hospitalFilter = isManager ? `AND u.hospital = '${req.user.hospital.replace(/'/g, "''")}'` : '';
 
   const data = db.prepare(`
     SELECT
@@ -174,8 +189,9 @@ function getChartData(req, res) {
       COUNT(*) as readings,
       SUM(el.is_anomaly) as anomalies
     FROM exposure_logs el
+    LEFT JOIN users u ON u.card_number = el.card_number
     WHERE el.timestamp >= datetime('now', '-${days} days') AND el.is_deleted=0
-    ${cardFilter}
+    ${cardFilter} ${hospitalFilter}
     GROUP BY date ORDER BY date ASC
   `).all();
 
