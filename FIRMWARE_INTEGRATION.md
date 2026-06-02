@@ -1,10 +1,10 @@
 # Firmware Engineer Integration Guide
-## RadiGuard — Device-to-Server Communication
+## RADGUARD — Device-to-Server Communication
 
-**System:** RadiGuard Radiation Exposure Monitoring Platform  
+**System:** RADGUARD Radiation Exposure Monitoring Platform  
 **Document version:** 1.0  
 **Date:** 2026-04-17  
-**Author:** RadiGuard Engineering
+**Author:** RADGUARD Engineering
 
 ---
 
@@ -13,7 +13,7 @@
 The dosimeter hardware device is responsible for:
 1. Reading radiation dose data from the sensor (in **millisieverts, mSv**)
 2. Associating the reading with the correct **radiologist card number**
-3. Transmitting the reading to the RadiGuard backend over HTTP
+3. Transmitting the reading to the RADGUARD backend over HTTP
 4. Using its provisioned **API key** to authenticate every transmission
 
 The backend handles all threshold evaluation, anomaly detection, alerting, and reporting. The firmware has **one primary job**: reliably deliver accurate readings to a single endpoint.
@@ -36,7 +36,7 @@ The device does **not** need to maintain a persistent connection. Each reading i
 
 ## 3. Device Identity & Provisioning
 
-Every physical device must be **pre-registered** in the RadiGuard system by an administrator before it can submit data. Registration produces two immutable identifiers that must be stored in the device firmware (e.g., in flash/NVS):
+Every physical device must be **pre-registered** in the RADGUARD system by an administrator before it can submit data. Registration produces two immutable identifiers that must be stored in the device firmware (e.g., in flash/NVS):
 
 | Field | Example | Description |
 |-------|---------|-------------|
