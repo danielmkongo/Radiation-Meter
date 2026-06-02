@@ -121,11 +121,16 @@ function evaluateThresholds(cardNumber) {
  */
 function getDoseSummary(cardNumber) {
   const n = now();
+  // `value` key matches what the dashboard returns and what <ExposureMeter> reads.
+  const period = (start, limit, warning) => {
+    const value = getCumulativeDose(cardNumber, start, n);
+    return { value, limit, warning, percent: +(value / limit * 100).toFixed(1) };
+  };
   return {
-    annual:  { dose: getCumulativeDose(cardNumber, startOfYear(),  n), limit: DOSE_LIMITS.ANNUAL_LIMIT,  warning: DOSE_LIMITS.ANNUAL_WARNING  },
-    monthly: { dose: getCumulativeDose(cardNumber, startOfMonth(), n), limit: DOSE_LIMITS.MONTHLY_LIMIT, warning: DOSE_LIMITS.MONTHLY_WARNING },
-    weekly:  { dose: getCumulativeDose(cardNumber, startOfWeek(),  n), limit: DOSE_LIMITS.WEEKLY_LIMIT,  warning: DOSE_LIMITS.WEEKLY_WARNING  },
-    daily:   { dose: getCumulativeDose(cardNumber, startOfDay(),   n), limit: DOSE_LIMITS.DAILY_LIMIT,   warning: DOSE_LIMITS.DAILY_WARNING   },
+    annual:  period(startOfYear(),  DOSE_LIMITS.ANNUAL_LIMIT,  DOSE_LIMITS.ANNUAL_WARNING),
+    monthly: period(startOfMonth(), DOSE_LIMITS.MONTHLY_LIMIT, DOSE_LIMITS.MONTHLY_WARNING),
+    weekly:  period(startOfWeek(),  DOSE_LIMITS.WEEKLY_LIMIT,  DOSE_LIMITS.WEEKLY_WARNING),
+    daily:   period(startOfDay(),   DOSE_LIMITS.DAILY_LIMIT,   DOSE_LIMITS.DAILY_WARNING),
   };
 }
 
