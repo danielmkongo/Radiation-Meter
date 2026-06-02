@@ -9,7 +9,9 @@ export function formatDose(mSv, decimals = 4) {
 export function formatDoseShort(mSv) {
   if (mSv === null || mSv === undefined) return '—';
   const v = parseFloat(mSv);
-  if (v < 0.001) return '<0.001 mSv';
+  if (v === 0) return '0.0000 mSv';
+  if (v < 0.0001) return `${v.toFixed(7)} mSv`;
+  if (v < 0.001) return `${v.toFixed(6)} mSv`;
   if (v >= 1) return `${v.toFixed(3)} mSv`;
   return `${v.toFixed(4)} mSv`;
 }

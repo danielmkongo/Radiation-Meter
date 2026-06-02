@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Monitor, Plus, Key, Trash2, Edit, Wifi, WifiOff, Clock,
-  Users, Activity, ChevronRight,
+  Users, ChevronRight, AlertTriangle, Copy, CheckCheck,
 } from 'lucide-react';
-import { devicesApi } from '../api/api';
+import { devicesApi, hospitalsApi } from '../api/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Card from '../components/ui/Card';
@@ -12,25 +12,90 @@ import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Drawer from '../components/ui/Drawer';
 import Input from '../components/ui/Input';
+import ComboInput from '../components/ui/ComboInput';
 import Spinner from '../components/ui/Spinner';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { formatRelative, formatDate } from '../utils/formatters';
 import { ROLE_LABELS } from '../utils/constants';
 
+// ─── API Key Display Modal ────────────────────────────────────────────────────
+function ApiKeyModal({ apiKey, onClose }) {
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    navigator.clipboard.writeText(apiKey).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <Modal
+      open={!!apiKey}
+      onClose={onClose}
+      title="Save Your API Key"
+      footer={
+        <Button variant="primary" onClick={onClose}>
+          Done — I've saved it
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            This API key will <strong>never be shown again</strong>. Copy it now and store it securely in the device firmware.
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-medium text-muted uppercase tracking-wide mb-1.5">API Key</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 input-field font-mono text-sm break-all select-all text-primary-500">
+              {apiKey}
+            </code>
+            <button
+              onClick={copy}
+              className="shrink-0 p-2 rounded-lg transition-colors border"
+              style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface2)' }}
+              title="Copy to clipboard"
+            >
+              {copied
+                ? <CheckCheck className="w-4 h-4 text-emerald-400" />
+                : <Copy className="w-4 h-4 text-muted" />
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Device Form Modal ────────────────────────────────────────────────────────
-function DeviceFormModal({ open, onClose, onSaved, initial }) {
+function DeviceFormModal({ open, onClose, onSaved, initial, onApiKey }) {
   const toast = useToast();
   const blank = { device_id: '', name: '', location: '', hospital: '', firmware_version: '' };
-  const [form, setForm] = useState(blank);
+  const [form, setForm]       = useState(blank);
   const [loading, setLoading] = useState(false);
+  const [hospitals, setHospitals] = useState([]);
 
-  useEffect(() => { setForm(initial ? { ...blank, ...initial } : blank); }, [initial]);
+  useEffect(() => { setForm(initial ? { ...blank, ...initial } : blank); }, [initial, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    hospitalsApi.list()
+      .then((r) => setHospitals((r.data.data || []).map((h) => h.name)))
+      .catch(() => {});
+  }, [open]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit(e) {
     e.preventDefault();
+    if (!form.device_id || !form.name || !form.location) {
+      toast.error('Device ID, name and location are required'); return;
+    }
     setLoading(true);
     try {
       if (initial?.id) {
@@ -38,9 +103,7 @@ function DeviceFormModal({ open, onClose, onSaved, initial }) {
         toast.success('Device updated');
       } else {
         const res = await devicesApi.create(form);
-        if (res.data.data.api_key) {
-          alert(`IMPORTANT — Save this API key now, it won't be shown again:\n\n${res.data.data.api_key}`);
-        }
+        if (res.data.data.api_key) onApiKey?.(res.data.data.api_key);
         toast.success('Device registered');
       }
       onSaved?.();
@@ -59,16 +122,46 @@ function DeviceFormModal({ open, onClose, onSaved, initial }) {
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button variant="primary" onClick={submit} loading={loading}>{initial?.id ? 'Save' : 'Register'}</Button>
+          <Button variant="primary" onClick={submit} loading={loading}>
+            {initial?.id ? 'Save Changes' : 'Register'}
+          </Button>
         </>
       }
     >
-      <form onSubmit={submit} className="space-y-4">
-        <Input label="Device ID *" placeholder="DEV-MNH-001" value={form.device_id} onChange={set('device_id')} disabled={!!initial?.id} />
-        <Input label="Name *" placeholder="Dosimeter Unit A" value={form.name} onChange={set('name')} />
-        <Input label="Location *" placeholder="CT Scan Room 1" value={form.location} onChange={set('location')} />
-        <Input label="Hospital" placeholder="Muhimbili National Hospital" value={form.hospital} onChange={set('hospital')} />
-        <Input label="Firmware Version" placeholder="1.0.0" value={form.firmware_version} onChange={set('firmware_version')} />
+      <form onSubmit={submit} className="space-y-3">
+        <Input
+          label="Device ID *"
+          placeholder="DEV-MNH-001"
+          value={form.device_id}
+          onChange={set('device_id')}
+          disabled={!!initial?.id}
+          hint={initial?.id ? 'Device ID cannot be changed' : undefined}
+        />
+        <Input
+          label="Name *"
+          placeholder="Dosimeter Unit A"
+          value={form.name}
+          onChange={set('name')}
+        />
+        <Input
+          label="Location *"
+          placeholder="CT Scan Room 1"
+          value={form.location}
+          onChange={set('location')}
+        />
+        <ComboInput
+          label="Hospital"
+          placeholder="Select or type hospital name"
+          value={form.hospital}
+          onChange={set('hospital')}
+          options={hospitals}
+        />
+        <Input
+          label="Firmware Version"
+          placeholder="1.0.0"
+          value={form.firmware_version}
+          onChange={set('firmware_version')}
+        />
       </form>
     </Modal>
   );
@@ -76,7 +169,7 @@ function DeviceFormModal({ open, onClose, onSaved, initial }) {
 
 // ─── Device Detail Drawer ─────────────────────────────────────────────────────
 function DeviceDrawer({ device, open, onClose }) {
-  const [users, setUsers]   = useState([]);
+  const [users, setUsers]     = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -91,9 +184,9 @@ function DeviceDrawer({ device, open, onClose }) {
   if (!device) return null;
 
   const statusIcon = (s) =>
-    s === 'online'  ? <Wifi className="w-3.5 h-3.5 text-emerald-400" /> :
-    s === 'stale'   ? <Clock className="w-3.5 h-3.5 text-amber-400" /> :
-                      <WifiOff className="w-3.5 h-3.5 text-red-400" />;
+    s === 'online' ? <Wifi className="w-3.5 h-3.5 text-emerald-400" /> :
+    s === 'stale'  ? <Clock className="w-3.5 h-3.5 text-amber-400" /> :
+                     <WifiOff className="w-3.5 h-3.5 text-red-400" />;
 
   return (
     <Drawer
@@ -131,7 +224,7 @@ function DeviceDrawer({ device, open, onClose }) {
       <div>
         <div className="flex items-center gap-2 mb-3">
           <Users className="w-4 h-4 text-primary-500" />
-          <h3 className="text-sm font-semibold text-page">Users who used this device</h3>
+          <h3 className="text-sm font-semibold text-page">Users on this device</h3>
           {!loading && <span className="text-xs text-muted">({users.length})</span>}
         </div>
 
@@ -147,7 +240,9 @@ function DeviceDrawer({ device, open, onClose }) {
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                   {['Name', 'Card No.', 'Department', 'Role', 'Readings', 'Total Dose', 'Last Reading'].map((h) => (
-                    <th key={h} className="text-left px-4 py-2.5 text-muted font-medium uppercase tracking-wide text-[10px]">{h}</th>
+                    <th key={h} className="text-left px-4 py-2.5 text-muted font-medium uppercase tracking-wide text-[10px]">
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -188,15 +283,16 @@ export default function Devices() {
   const toast = useToast();
   const isAdmin = user?.role === 'admin';
 
-  const [devices, setDevices]         = useState([]);
-  const [pagination, setPagination]   = useState({});
-  const [loading, setLoading]         = useState(true);
-  const [page, setPage]               = useState(1);
-  const [formModal, setFormModal]     = useState(null);
+  const [devices, setDevices]             = useState([]);
+  const [pagination, setPagination]       = useState({});
+  const [loading, setLoading]             = useState(true);
+  const [page, setPage]                   = useState(1);
+  const [formModal, setFormModal]         = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [deleting, setDeleting]       = useState(false);
-  const [regening, setRegening]       = useState(null);
+  const [deleting, setDeleting]           = useState(false);
+  const [regening, setRegening]           = useState(null);
   const [selectedDevice, setSelectedDevice] = useState(null);
+  const [newApiKey, setNewApiKey]         = useState(null);
 
   const fetchDevices = useCallback(() => {
     setLoading(true);
@@ -224,11 +320,11 @@ export default function Devices() {
 
   async function handleRegenKey(e, id) {
     e.stopPropagation();
-    if (!window.confirm('Regenerate API key? The old key will stop working immediately.')) return;
+    if (!window.confirm('Regenerate API key? The current key will stop working immediately.')) return;
     setRegening(id);
     try {
       const res = await devicesApi.regenerateKey(id);
-      alert(`New API Key (save this now):\n\n${res.data.data.api_key}`);
+      setNewApiKey(res.data.data.api_key);
       toast.success('API key regenerated');
     } catch {
       toast.error('Failed to regenerate key');
@@ -244,21 +340,27 @@ export default function Devices() {
 
   return (
     <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="page-title">Devices</h2>
-          <p className="text-sm text-muted">{pagination.total || 0} registered devices · click a row to inspect</p>
+          <p className="text-sm text-muted mt-0.5">
+            {pagination.total || 0} registered dosimeters · click a row to inspect
+          </p>
         </div>
         {isAdmin && (
-          <Button variant="primary" icon={Plus} onClick={() => setFormModal({})}>Register Device</Button>
+          <Button variant="primary" icon={Plus} onClick={() => setFormModal({})}>
+            Register Device
+          </Button>
         )}
       </div>
 
+      {/* Table */}
       <Card noPadding>
         {loading ? (
           <div className="flex items-center justify-center py-16"><Spinner size="lg" /></div>
         ) : !devices.length ? (
-          <EmptyState icon={Monitor} title="No devices" description="No IoT dosimeter devices registered." />
+          <EmptyState icon={Monitor} title="No devices" description="No IoT dosimeter devices registered yet." />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -266,7 +368,9 @@ export default function Devices() {
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                     {['Device ID', 'Name', 'Location', 'Hospital', 'Status', 'Last Seen', 'Firmware', ...(isAdmin ? ['Actions'] : []), ''].map((h) => (
-                      <th key={h} className="text-left text-xs font-medium text-muted uppercase tracking-wider px-5 py-3">{h}</th>
+                      <th key={h} className="text-left text-xs font-medium text-muted uppercase tracking-wider px-5 py-3">
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
@@ -280,7 +384,7 @@ export default function Devices() {
                     >
                       <td className="px-5 py-3 text-primary-500 font-mono text-xs">{d.device_id}</td>
                       <td className="px-5 py-3 font-medium text-page">{d.name}</td>
-                      <td className="px-5 py-3 text-secondary">{d.location}</td>
+                      <td className="px-5 py-3 text-secondary text-xs">{d.location}</td>
                       <td className="px-5 py-3 text-secondary text-xs">{d.hospital || '—'}</td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-1.5">
@@ -297,7 +401,7 @@ export default function Devices() {
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => setFormModal(d)}
-                              className="p-1.5 rounded transition-colors text-muted hover:text-primary-400"
+                              className="p-1.5 rounded transition-colors text-muted hover:text-primary-500 hover:bg-primary-500/10"
                               title="Edit"
                             >
                               <Edit className="w-3.5 h-3.5" />
@@ -305,14 +409,17 @@ export default function Devices() {
                             <button
                               onClick={(e) => handleRegenKey(e, d.id)}
                               disabled={regening === d.id}
-                              className="p-1.5 rounded transition-colors text-muted hover:text-amber-400"
+                              className="p-1.5 rounded transition-colors text-muted hover:text-amber-400 hover:bg-amber-500/10"
                               title="Regenerate API Key"
                             >
-                              <Key className="w-3.5 h-3.5" />
+                              {regening === d.id
+                                ? <Spinner size="sm" />
+                                : <Key className="w-3.5 h-3.5" />
+                              }
                             </button>
                             <button
-                              onClick={() => setConfirmDelete(d.id)}
-                              className="p-1.5 rounded transition-colors text-muted hover:text-red-400"
+                              onClick={(e) => { e.stopPropagation(); setConfirmDelete(d.id); }}
+                              className="p-1.5 rounded transition-colors text-muted hover:text-red-400 hover:bg-red-500/10"
                               title="Deactivate"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -329,7 +436,10 @@ export default function Devices() {
               </table>
             </div>
             {pagination.pages > 1 && (
-              <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: '1px solid var(--border-color)' }}>
+              <div
+                className="flex items-center justify-between px-5 py-3"
+                style={{ borderTop: '1px solid var(--border-color)' }}
+              >
                 <p className="text-xs text-muted">Page {pagination.page} of {pagination.pages}</p>
                 <div className="flex gap-2">
                   <Button variant="secondary" size="xs" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</Button>
@@ -346,6 +456,7 @@ export default function Devices() {
         onClose={() => setFormModal(null)}
         onSaved={fetchDevices}
         initial={formModal?.id ? formModal : null}
+        onApiKey={(key) => setNewApiKey(key)}
       />
 
       <DeviceDrawer
@@ -354,13 +465,18 @@ export default function Devices() {
         onClose={() => setSelectedDevice(null)}
       />
 
+      <ApiKeyModal
+        apiKey={newApiKey}
+        onClose={() => setNewApiKey(null)}
+      />
+
       <ConfirmDialog
         open={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
         onConfirm={handleDelete}
         loading={deleting}
         title="Deactivate Device"
-        message="This device will be marked inactive and can no longer ingest data. Existing logs are preserved."
+        message="This device will be marked inactive and can no longer ingest data. All existing exposure logs are preserved."
         confirmLabel="Deactivate"
         variant="danger"
       />

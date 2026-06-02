@@ -120,7 +120,8 @@ export default function Dashboard() {
           {role === 'regulator' ? 'Regulatory Overview' : role === 'hospital_manager' ? 'Facility Dashboard' : 'System Dashboard'}
         </h2>
         <p className="text-sm text-muted mt-0.5">
-          {user.hospital ? `${user.hospital} · ` : ''}{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          {user.hospital ? `${user.hospital} · ` : ''}
+          {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
 
@@ -128,7 +129,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <StatsCard
           title="Today's Total Dose"
-          value={data.totals?.today?.toFixed(4) || '0.0000'}
+          value={data.totals?.today != null ? parseFloat(data.totals.today).toFixed(4) : '0.0000'}
           unit="mSv"
           icon={Zap}
           color="primary"
@@ -225,7 +226,7 @@ export default function Dashboard() {
                       <td className="py-2 px-3 text-slate-400 font-mono text-xs">{u.card_number}</td>
                       <td className="py-2 px-3 text-slate-400">{u.department || '—'}</td>
                       <td className="py-2 px-3 text-slate-400">{u.hospital || '—'}</td>
-                      <td className="py-2 px-3 text-slate-300 font-semibold">{parseFloat(u.annual_dose).toFixed(4)} mSv</td>
+                      <td className="py-2 px-3 font-semibold text-page">{parseFloat(u.annual_dose).toFixed(4)} mSv</td>
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-2">
                           <div className="h-1.5 w-20 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-surface3)' }}>
