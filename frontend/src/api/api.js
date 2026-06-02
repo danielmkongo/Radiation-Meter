@@ -63,6 +63,7 @@ export const usersApi = {
 export const reportsApi = {
   exposureCsv:   (params) => api.get('/reports/exposure',   { params, responseType: 'blob' }),
   complianceCsv: ()       => api.get('/reports/compliance', { responseType: 'blob' }),
+  deviceCsv:     (params) => api.get('/reports/devices',    { params, responseType: 'blob' }),
 };
 
 // ─── Audit ───────────────────────────────────────────────────────────────────

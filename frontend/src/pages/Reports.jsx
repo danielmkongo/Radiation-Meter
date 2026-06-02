@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Download, BarChart2, Shield } from 'lucide-react';
+import { FileText, Download, BarChart2, Shield, Cpu } from 'lucide-react';
 import { reportsApi, downloadBlob } from '../api/api';
 import { useToast } from '../context/ToastContext';
 import Card from '../components/ui/Card';
@@ -37,6 +37,19 @@ export default function Reports() {
       toast.success('Compliance report downloaded');
     } catch {
       toast.error('Failed to generate compliance report');
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  async function downloadDeviceSummary() {
+    setDownloading('devices');
+    try {
+      const res = await reportsApi.deviceCsv({ start_date: startDate, end_date: endDate });
+      downloadBlob(res.data, `device_summary_${startDate}_to_${endDate}.csv`);
+      toast.success('Device summary downloaded');
+    } catch {
+      toast.error('Failed to generate device summary');
     } finally {
       setDownloading(null);
     }
@@ -106,6 +119,24 @@ export default function Reports() {
           </Button>
         </Card>
       </div>
+
+      {/* Device Summary */}
+      <Card>
+        <div className="flex items-start gap-4 mb-5">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
+            <Cpu className="w-5 h-5 text-amber-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-100">Per-Device Summary</h3>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Total/average/peak dose, reading count and anomalies per device, for the date range above
+            </p>
+          </div>
+        </div>
+        <Button variant="secondary" icon={Download} loading={downloading === 'devices'} onClick={downloadDeviceSummary}>
+          Download Device CSV
+        </Button>
+      </Card>
 
       {/* Print */}
       <Card>

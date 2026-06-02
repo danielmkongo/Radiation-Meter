@@ -252,7 +252,7 @@ function DeviceFormModal({ open, onClose, onSaved, initial, onApiKey }) {
 }
 
 // ─── Device Detail Drawer ─────────────────────────────────────────────────────
-function DeviceDrawer({ device, open, onClose, onEdit, isAdmin, isManager }) {
+function DeviceDrawer({ device, open, onClose, onEdit, isAdmin }) {
   const toast = useToast();
   const [users, setUsers]       = useState([]);
   const [apiKey, setApiKey]     = useState(null);
@@ -301,7 +301,7 @@ function DeviceDrawer({ device, open, onClose, onEdit, isAdmin, isManager }) {
     s === 'stale'  ? <Clock className="w-3.5 h-3.5 text-amber-400" /> :
                      <WifiOff className="w-3.5 h-3.5 text-red-400" />;
 
-  const canManage = isAdmin || isManager;
+  const canManage = isAdmin;
 
   return (
     <Drawer
@@ -443,8 +443,7 @@ export default function Devices() {
   const { user } = useAuth();
   const toast = useToast();
   const isAdmin   = user?.role === 'admin';
-  const isManager = user?.role === 'hospital_manager';
-  const canManage = isAdmin || isManager;
+  const canManage = isAdmin;
 
   const [devices, setDevices]             = useState([]);
   const [pagination, setPagination]       = useState({});
@@ -596,7 +595,6 @@ export default function Devices() {
         onClose={() => setSelectedDevice(null)}
         onEdit={(d) => { setSelectedDevice(null); setFormModal(d); }}
         isAdmin={isAdmin}
-        isManager={isManager}
       />
 
       <ApiKeyModal
