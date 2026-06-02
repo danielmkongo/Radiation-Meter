@@ -19,6 +19,9 @@ function ingestExposure(req, res) {
     return error(res, 'radiation_value must be a non-negative number');
   }
 
+  // Device sends in mSv — store as-is
+  const radiation_mSv = radiation_value;
+
   const db = getDb();
 
   // Verify the card_number belongs to a known user (radiologist)
@@ -46,29 +49,28 @@ function ingestExposure(req, res) {
     return success(res, { id: existing.id, duplicate: true }, 'Duplicate record — already ingested');
   }
 
-  // Anomaly detection
-  const anomalyResult = detectAnomaly(card_number.toUpperCase().trim(), radiation_value);
+  // Anomaly detection (on mSv value)
+  const anomalyResult = detectAnomaly(card_number.toUpperCase().trim(), radiation_mSv);
 
-  // Insert record
+  // Insert record (store in mSv)
   const result = db.prepare(
     `INSERT INTO exposure_logs (device_id, card_number, radiation_value, unit, timestamp, is_anomaly)
      VALUES (?, ?, ?, 'mSv', ?, ?)`
-  ).run(device_id.toUpperCase().trim(), card_number.toUpperCase().trim(), radiation_value, ts, anomalyResult.isAnomaly ? 1 : 0);
+  ).run(device_id.toUpperCase().trim(), card_number.toUpperCase().trim(), radiation_mSv, ts, anomalyResult.isAnomaly ? 1 : 0);
 
-  // Process threshold violations asynchronously (still sync in SQLite but logically separated)
+  // Evaluate dose thresholds (mSv)
   const violations = evaluateThresholds(card_number.toUpperCase().trim());
   processThresholdViolations(card_number.toUpperCase().trim(), violations);
 
-  // Create anomaly alert if detected
   if (anomalyResult.isAnomaly) {
-    createAnomalyAlert(card_number.toUpperCase().trim(), device_id.toUpperCase().trim(), radiation_value, anomalyResult.zScore);
+    createAnomalyAlert(card_number.toUpperCase().trim(), device_id.toUpperCase().trim(), radiation_mSv, anomalyResult.zScore);
   }
 
   return created(res, {
     id: result.lastInsertRowid,
     device_id: device_id.toUpperCase().trim(),
     card_number: card_number.toUpperCase().trim(),
-    radiation_value,
+    radiation_value: radiation_mSv,
     unit: 'mSv',
     timestamp: ts,
     is_anomaly: anomalyResult.isAnomaly,

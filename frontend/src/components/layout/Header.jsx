@@ -2,6 +2,7 @@ import { useLocation, Link } from 'react-router-dom';
 import { Bell, LogOut, Sun, Moon, Menu } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useUnit } from '../../context/UnitContext';
 import { ROLE_LABELS } from '../../utils/constants';
 
 const PAGE_TITLES = {
@@ -20,6 +21,7 @@ export default function Header({ alertCount = 0, onMenuOpen }) {
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
   const { isDark, toggle } = useTheme();
+  const { unit, toggle: toggleUnit } = useUnit();
 
   const title = PAGE_TITLES[pathname] || 'RadiGuard';
 
@@ -46,6 +48,21 @@ export default function Header({ alertCount = 0, onMenuOpen }) {
       </div>
 
       <div className="flex items-center gap-1">
+        {/* Unit toggle */}
+        <button
+          onClick={toggleUnit}
+          className="px-2.5 py-1 rounded-lg text-xs font-bold transition-all border"
+          style={{
+            borderColor: 'var(--border-color)',
+            backgroundColor: 'var(--bg-surface2)',
+            color: unit === 'µSv' ? '#0ea5e9' : 'var(--text-secondary)',
+            fontFamily: 'monospace',
+          }}
+          title={`Switch to ${unit === 'mSv' ? 'µSv' : 'mSv'}`}
+        >
+          {unit}
+        </button>
+
         {/* Theme toggle */}
         <button
           onClick={toggle}

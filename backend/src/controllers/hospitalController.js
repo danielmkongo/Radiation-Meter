@@ -1,24 +1,19 @@
 const { getDb } = require('../config/database');
-const { success } = require('../utils/response');
+const { success, created, error, notFound } = require('../utils/response');
 
 function listHospitals(req, res) {
   const db = getDb();
 
-  // Collect all distinct hospital names from both tables
-  const names = db.prepare(`
-    SELECT hospital FROM devices WHERE hospital IS NOT NULL AND hospital != ''
-    UNION
-    SELECT hospital FROM users  WHERE hospital IS NOT NULL AND hospital != ''
-    ORDER BY hospital
-  `).all().map((r) => r.hospital);
+  // Source of truth: the hospitals table
+  const rows = db.prepare('SELECT name FROM hospitals ORDER BY name').all();
 
-  const hospitals = names.map((name) => {
+  const hospitals = rows.map(({ name }) => {
     const deviceCount = db.prepare(
-      `SELECT COUNT(*) AS n FROM devices WHERE hospital = ? AND is_active = 1`
+      'SELECT COUNT(*) AS n FROM devices WHERE hospital = ? AND is_active = 1'
     ).get(name).n;
 
     const staffCount = db.prepare(
-      `SELECT COUNT(*) AS n FROM users WHERE hospital = ? AND is_active = 1`
+      'SELECT COUNT(*) AS n FROM users WHERE hospital = ? AND is_active = 1'
     ).get(name).n;
 
     const monthlyExposure = db.prepare(`
@@ -43,11 +38,43 @@ function listHospitals(req, res) {
   return success(res, hospitals);
 }
 
+function createHospital(req, res) {
+  const { name } = req.body;
+  if (!name || !name.trim()) return error(res, 'Hospital name is required');
+
+  const db = getDb();
+  try {
+    db.prepare('INSERT INTO hospitals (name) VALUES (?)').run(name.trim());
+  } catch (e) {
+    if (e.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' || e.message?.includes('UNIQUE')) {
+      return error(res, 'Hospital already registered', 409);
+    }
+    throw e;
+  }
+  return created(res, { name: name.trim() }, 'Hospital registered');
+}
+
+function deleteHospital(req, res) {
+  const db = getDb();
+  const name = decodeURIComponent(req.params.name);
+  const row = db.prepare('SELECT name FROM hospitals WHERE name = ?').get(name);
+  if (!row) return notFound(res, 'Hospital not found');
+
+  // Prevent deletion if devices or users are still linked
+  const devCount  = db.prepare('SELECT COUNT(*) AS n FROM devices WHERE hospital = ? AND is_active = 1').get(name).n;
+  const userCount = db.prepare('SELECT COUNT(*) AS n FROM users  WHERE hospital = ? AND is_active = 1').get(name).n;
+  if (devCount > 0 || userCount > 0) {
+    return error(res, `Cannot remove hospital — ${devCount} active device(s) and ${userCount} active user(s) are still linked.`, 409);
+  }
+
+  db.prepare('DELETE FROM hospitals WHERE name = ?').run(name);
+  return success(res, null, 'Hospital removed');
+}
+
 function getHospitalDetails(req, res) {
   const db = getDb();
   const name = decodeURIComponent(req.params.name);
 
-  // Devices belonging to this hospital
   const devices = db.prepare(`
     SELECT id, device_id, name, location, hospital, last_seen, firmware_version, is_active, created_at
     FROM devices WHERE hospital = ? AND is_active = 1 ORDER BY name
@@ -55,17 +82,16 @@ function getHospitalDetails(req, res) {
     const diffMinutes = d.last_seen
       ? (Date.now() - new Date(d.last_seen).getTime()) / 60000
       : Infinity;
-    const status = diffMinutes <= 5 ? 'online' : diffMinutes <= 60 ? 'stale' : 'offline';
+    const status = diffMinutes <= 30 ? 'online' : diffMinutes <= 120 ? 'stale' : 'offline';
     return { ...d, status };
   });
 
   const deviceIds = devices.map((d) => d.device_id);
 
-  // Users who have logged exposure through any device in this hospital
-  let staff = [];
+  let exposureStaff = [];
   if (deviceIds.length) {
     const placeholders = deviceIds.map(() => '?').join(',');
-    staff = db.prepare(`
+    exposureStaff = db.prepare(`
       SELECT
         u.id, u.full_name, u.card_number, u.department, u.hospital, u.role,
         COUNT(el.id)                         AS total_readings,
@@ -79,21 +105,17 @@ function getHospitalDetails(req, res) {
     `).all(...deviceIds);
   }
 
-  // Also include users registered in this hospital even if no exposure yet
-  const registeredStaff = db.prepare(`
-    SELECT id, full_name, card_number, department, hospital, role
-    FROM users WHERE hospital = ? AND is_active = 1
-  `).all(name);
+  const registeredStaff = db.prepare(
+    'SELECT id, full_name, card_number, department, hospital, role FROM users WHERE hospital = ? AND is_active = 1'
+  ).all(name);
 
-  // Merge: start with registeredStaff, overlay exposure data from staff
-  const staffMap = new Map(staff.map((s) => [s.card_number, s]));
+  const staffMap = new Map(exposureStaff.map((s) => [s.card_number, s]));
   const merged = registeredStaff.map((u) =>
     staffMap.has(u.card_number)
       ? staffMap.get(u.card_number)
       : { ...u, total_readings: 0, total_dose: 0, last_reading: null }
   );
-  // Add any staff who used devices here but aren't registered to this hospital
-  staff.forEach((s) => {
+  exposureStaff.forEach((s) => {
     if (!merged.find((m) => m.card_number === s.card_number)) merged.push(s);
   });
   merged.sort((a, b) => b.total_dose - a.total_dose);
@@ -101,4 +123,4 @@ function getHospitalDetails(req, res) {
   return success(res, { name, devices, staff: merged });
 }
 
-module.exports = { listHospitals, getHospitalDetails };
+module.exports = { listHospitals, createHospital, deleteHospital, getHospitalDetails };

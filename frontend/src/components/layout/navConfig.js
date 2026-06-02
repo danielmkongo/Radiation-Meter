@@ -32,7 +32,7 @@ export const NAV_ITEMS = [
     label: 'Hospitals',
     path: '/hospitals',
     icon: Building2,
-    roles: ['admin', 'hospital_manager', 'regulator'],
+    roles: ['admin', 'regulator'],
   },
   {
     label: 'Users',

@@ -1,30 +1,32 @@
 import { DOSE_LIMITS } from '../../utils/constants';
+import { useUnit } from '../../context/UnitContext';
+import { formatDoseInUnit, convertToUnit } from '../../utils/formatters';
 
-function DosePeriodBar({ label, value, limit, warning }) {
-  const pct = Math.min(100, (value / limit) * 100);
-  const color = value >= limit ? 'bg-red-500' : value >= warning ? 'bg-amber-500' : 'bg-emerald-500';
-  const textColor = value >= limit ? 'text-red-400' : value >= warning ? 'text-amber-400' : 'text-emerald-400';
+function DosePeriodBar({ label, valueMSv, limitMSv, warningMSv, unit }) {
+  const pct   = Math.min(100, (valueMSv / limitMSv) * 100);
+  const color = valueMSv >= limitMSv ? 'bg-red-500' : valueMSv >= warningMSv ? 'bg-amber-500' : 'bg-emerald-500';
+  const textColor = valueMSv >= limitMSv ? 'text-red-400' : valueMSv >= warningMSv ? 'text-amber-400' : 'text-emerald-400';
 
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs text-slate-400">{label}</span>
+        <span className="text-xs text-muted">{label}</span>
         <span className={`text-xs font-semibold ${textColor}`}>
-          {value.toFixed(4)} / {limit} mSv
+          {formatDoseInUnit(valueMSv, unit)}
+          <span className="font-normal text-muted mx-1">/</span>
+          {formatDoseInUnit(limitMSv, unit)}
         </span>
       </div>
       <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-surface3)' }}>
-        <div
-          className={`h-full ${color} rounded-full transition-all duration-500`}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
       </div>
-      <p className="text-[10px] text-slate-600 mt-0.5 text-right">{pct.toFixed(1)}% of limit</p>
+      <p className="text-[10px] text-muted mt-0.5 text-right">{pct.toFixed(1)}% of limit</p>
     </div>
   );
 }
 
 export default function ExposureMeter({ doseSummary }) {
+  const { unit } = useUnit();
   if (!doseSummary) return null;
   const { annual, monthly, weekly, daily } = doseSummary;
 
@@ -34,7 +36,10 @@ export default function ExposureMeter({ doseSummary }) {
     annual.value >= DOSE_LIMITS.ANNUAL_WARNING ? 'text-amber-400' : 'text-emerald-400';
   const statusLabel =
     annual.value >= DOSE_LIMITS.ANNUAL_LIMIT   ? 'CRITICAL' :
-    annual.value >= DOSE_LIMITS.ANNUAL_WARNING ? 'WARNING' : 'SAFE';
+    annual.value >= DOSE_LIMITS.ANNUAL_WARNING ? 'WARNING'  : 'SAFE';
+
+  const annualDisplay = formatDoseInUnit(annual.value, unit);
+  const annualLimit   = formatDoseInUnit(DOSE_LIMITS.ANNUAL_LIMIT, unit);
 
   return (
     <div className="space-y-5">
@@ -54,21 +59,21 @@ export default function ExposureMeter({ doseSummary }) {
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-xl font-bold text-slate-100">{annualPct.toFixed(0)}%</span>
-            <span className="text-[10px] text-slate-500">annual</span>
+            <span className="text-xl font-bold text-page">{annualPct.toFixed(0)}%</span>
+            <span className="text-[10px] text-muted">annual</span>
           </div>
         </div>
         <p className={`text-sm font-bold ${statusColor}`}>{statusLabel}</p>
-        <p className="text-xs text-slate-500 mt-0.5">
-          {annual.value.toFixed(4)} / {DOSE_LIMITS.ANNUAL_LIMIT} mSv/year
+        <p className="text-xs text-muted mt-0.5">
+          {annualDisplay} / {annualLimit} per year
         </p>
       </div>
 
       {/* Period bars */}
       <div className="space-y-3">
-        <DosePeriodBar label="Monthly" value={monthly.value} limit={DOSE_LIMITS.MONTHLY_LIMIT} warning={DOSE_LIMITS.MONTHLY_WARNING} />
-        <DosePeriodBar label="Weekly"  value={weekly.value}  limit={DOSE_LIMITS.WEEKLY_LIMIT}  warning={DOSE_LIMITS.WEEKLY_WARNING} />
-        <DosePeriodBar label="Daily"   value={daily.value}   limit={DOSE_LIMITS.DAILY_LIMIT}   warning={DOSE_LIMITS.DAILY_WARNING} />
+        <DosePeriodBar label="Monthly" valueMSv={monthly.value} limitMSv={DOSE_LIMITS.MONTHLY_LIMIT} warningMSv={DOSE_LIMITS.MONTHLY_WARNING} unit={unit} />
+        <DosePeriodBar label="Weekly"  valueMSv={weekly.value}  limitMSv={DOSE_LIMITS.WEEKLY_LIMIT}  warningMSv={DOSE_LIMITS.WEEKLY_WARNING}  unit={unit} />
+        <DosePeriodBar label="Daily"   valueMSv={daily.value}   limitMSv={DOSE_LIMITS.DAILY_LIMIT}   warningMSv={DOSE_LIMITS.DAILY_WARNING}   unit={unit} />
       </div>
     </div>
   );

@@ -118,6 +118,12 @@ function initializeSchema() {
     CREATE INDEX IF NOT EXISTS idx_audit_user_id    ON audit_logs(user_id);
     CREATE INDEX IF NOT EXISTS idx_audit_action     ON audit_logs(action);
     CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at);
+
+    -- ─── Hospitals (admin-managed registry) ──────────────────────────────────
+    CREATE TABLE IF NOT EXISTS hospitals (
+      name       TEXT PRIMARY KEY,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 

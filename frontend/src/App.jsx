@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { UnitProvider } from './context/UnitContext';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
@@ -46,6 +47,7 @@ function AuthRedirect() {
 export default function App() {
   return (
     <ThemeProvider>
+    <UnitProvider>
     <AuthProvider>
       <ToastProvider>
         <BrowserRouter>
@@ -112,6 +114,7 @@ export default function App() {
         </BrowserRouter>
       </ToastProvider>
     </AuthProvider>
+    </UnitProvider>
     </ThemeProvider>
   );
 }

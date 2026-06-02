@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { listDevices, getDevice, createDevice, updateDevice, regenerateApiKey, deleteDevice, getDeviceUsers } = require('../controllers/deviceController');
+const { listDevices, getDevice, getApiKey, createDevice, updateDevice, regenerateApiKey, deleteDevice, getDeviceUsers } = require('../controllers/deviceController');
 const { authenticate, requireRole, enforceHospitalIsolation } = require('../middleware/auth');
 
 router.use(authenticate);
@@ -7,6 +7,7 @@ router.use(authenticate);
 router.get('/',                  listDevices);
 router.get('/:id',               getDevice);
 router.get('/:id/users',         getDeviceUsers);
+router.get('/:id/api-key',       requireRole('admin', 'hospital_manager'), getApiKey);
 router.post('/',                 requireRole('admin', 'hospital_manager'), enforceHospitalIsolation, createDevice);
 router.put('/:id',               requireRole('admin', 'hospital_manager'), enforceHospitalIsolation, updateDevice);
 router.post('/:id/regenerate-key', requireRole('admin', 'hospital_manager'), enforceHospitalIsolation, regenerateApiKey);

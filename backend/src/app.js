@@ -45,8 +45,11 @@ app.use('/api/v1', routes);
 // ─── Serve frontend (production) ─────────────────────────────────────────────
 if (serveFrontend) {
   app.use(express.static(FRONTEND_DIST));
-  // SPA fallback — send index.html for any non-API route
-  app.get('*', (req, res) => {
+  // SPA fallback — only for HTML navigation requests, never for assets/api
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/assets/') || req.path.startsWith('/api/')) {
+      return next();
+    }
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });
 } else {

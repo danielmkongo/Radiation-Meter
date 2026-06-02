@@ -35,6 +35,7 @@ export const devicesApi = {
   list:           (params) => api.get('/devices', { params }),
   get:            (id)     => api.get(`/devices/${id}`),
   getUsers:       (id)     => api.get(`/devices/${id}/users`),
+  getApiKey:      (id)     => api.get(`/devices/${id}/api-key`),
   create:         (data)   => api.post('/devices', data),
   update:         (id, d)  => api.put(`/devices/${id}`, d),
   regenerateKey:  (id)     => api.post(`/devices/${id}/regenerate-key`),
@@ -44,6 +45,8 @@ export const devicesApi = {
 // ─── Hospitals ───────────────────────────────────────────────────────────────
 export const hospitalsApi = {
   list:    ()     => api.get('/hospitals'),
+  create:  (name) => api.post('/hospitals', { name }),
+  remove:  (name) => api.delete(`/hospitals/${encodeURIComponent(name)}`),
   details: (name) => api.get(`/hospitals/${encodeURIComponent(name)}/details`),
 };
 

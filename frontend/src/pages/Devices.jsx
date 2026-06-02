@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Monitor, Plus, Key, Trash2, Edit, Wifi, WifiOff, Clock,
-  Users, ChevronRight, AlertTriangle, Copy, CheckCheck,
+  Users, ChevronRight, AlertTriangle, Copy, CheckCheck, Eye, EyeOff,
+  RefreshCw, Wand2,
 } from 'lucide-react';
 import { devicesApi, hospitalsApi } from '../api/api';
 import { useAuth } from '../context/AuthContext';
@@ -12,16 +13,38 @@ import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Drawer from '../components/ui/Drawer';
 import Input from '../components/ui/Input';
-import ComboInput from '../components/ui/ComboInput';
+import Select from '../components/ui/Select';
 import Spinner from '../components/ui/Spinner';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { formatRelative, formatDate } from '../utils/formatters';
 import { ROLE_LABELS } from '../utils/constants';
 
-// ─── API Key Display Modal ────────────────────────────────────────────────────
-function ApiKeyModal({ apiKey, onClose }) {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function hospitalAbbrev(name = '') {
+  return name
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !['and', 'of', 'the'].includes(w.toLowerCase()))
+    .map((w) => w[0].toUpperCase())
+    .join('')
+    .slice(0, 4);
+}
+
+function suggestDeviceId(hospital, existingIds = []) {
+  const abbrev = hospitalAbbrev(hospital) || 'DEV';
+  const prefix = `DEV-${abbrev}-`;
+  const taken = existingIds
+    .filter((id) => id.startsWith(prefix))
+    .map((id) => parseInt(id.slice(prefix.length), 10))
+    .filter((n) => !isNaN(n));
+  const next = taken.length ? Math.max(...taken) + 1 : 1;
+  return `${prefix}${String(next).padStart(3, '0')}`;
+}
+
+// ─── API Key Display (copyable) ───────────────────────────────────────────────
+function ApiKeyBox({ apiKey, label = 'API Key' }) {
   const [copied, setCopied] = useState(false);
+  const [visible, setVisible] = useState(false);
 
   function copy() {
     navigator.clipboard.writeText(apiKey).then(() => {
@@ -30,43 +53,53 @@ function ApiKeyModal({ apiKey, onClose }) {
     });
   }
 
+  const display = visible ? apiKey : apiKey.slice(0, 6) + '•'.repeat(Math.max(0, apiKey.length - 6));
+
+  return (
+    <div>
+      <p className="text-xs font-medium text-muted uppercase tracking-wide mb-1.5">{label}</p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 input-field font-mono text-sm truncate text-primary-500">
+          {display}
+        </code>
+        <button
+          onClick={() => setVisible((v) => !v)}
+          className="shrink-0 p-2 rounded-lg transition-colors border"
+          style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface2)' }}
+          title={visible ? 'Hide key' : 'Reveal key'}
+        >
+          {visible ? <EyeOff className="w-4 h-4 text-muted" /> : <Eye className="w-4 h-4 text-muted" />}
+        </button>
+        <button
+          onClick={copy}
+          className="shrink-0 p-2 rounded-lg transition-colors border"
+          style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface2)' }}
+          title="Copy to clipboard"
+        >
+          {copied ? <CheckCheck className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-muted" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── API Key Modal (shown after create / regen) ───────────────────────────────
+function ApiKeyModal({ apiKey, onClose }) {
   return (
     <Modal
       open={!!apiKey}
       onClose={onClose}
       title="Save Your API Key"
-      footer={
-        <Button variant="primary" onClick={onClose}>
-          Done — I've saved it
-        </Button>
-      }
+      footer={<Button variant="primary" onClick={onClose}>Done — I've saved it</Button>}
     >
       <div className="space-y-4">
         <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
           <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            This API key will <strong>never be shown again</strong>. Copy it now and store it securely in the device firmware.
+            Flash this key into the device firmware now. You can view it again later from the device drawer.
           </p>
         </div>
-        <div>
-          <p className="text-xs font-medium text-muted uppercase tracking-wide mb-1.5">API Key</p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 input-field font-mono text-sm break-all select-all text-primary-500">
-              {apiKey}
-            </code>
-            <button
-              onClick={copy}
-              className="shrink-0 p-2 rounded-lg transition-colors border"
-              style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface2)' }}
-              title="Copy to clipboard"
-            >
-              {copied
-                ? <CheckCheck className="w-4 h-4 text-emerald-400" />
-                : <Copy className="w-4 h-4 text-muted" />
-              }
-            </button>
-          </div>
-        </div>
+        <ApiKeyBox apiKey={apiKey} label="New API Key" />
       </div>
     </Modal>
   );
@@ -75,21 +108,45 @@ function ApiKeyModal({ apiKey, onClose }) {
 // ─── Device Form Modal ────────────────────────────────────────────────────────
 function DeviceFormModal({ open, onClose, onSaved, initial, onApiKey }) {
   const toast = useToast();
-  const blank = { device_id: '', name: '', location: '', hospital: '', firmware_version: '' };
-  const [form, setForm]       = useState(blank);
-  const [loading, setLoading] = useState(false);
+  const blank = { device_id: '', name: '', location: '', hospital: '', firmware_version: '1.0.0' };
+  const [form, setForm]         = useState(blank);
+  const [loading, setLoading]   = useState(false);
   const [hospitals, setHospitals] = useState([]);
+  const [allDeviceIds, setAllDeviceIds] = useState([]);
 
-  useEffect(() => { setForm(initial ? { ...blank, ...initial } : blank); }, [initial, open]);
+  useEffect(() => {
+    setForm(initial ? { ...blank, ...initial } : blank);
+  }, [initial, open]);
 
   useEffect(() => {
     if (!open) return;
-    hospitalsApi.list()
-      .then((r) => setHospitals((r.data.data || []).map((h) => h.name)))
+    Promise.all([
+      hospitalsApi.list(),
+      devicesApi.list({ limit: 200 }),
+    ])
+      .then(([hRes, dRes]) => {
+        setHospitals((hRes.data.data || []).map((h) => h.name));
+        setAllDeviceIds((dRes.data.data || []).map((d) => d.device_id));
+      })
       .catch(() => {});
   }, [open]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  function handleHospitalChange(e) {
+    const hospital = e.target.value;
+    setForm((f) => ({
+      ...f,
+      hospital,
+      // Auto-suggest device_id when hospital changes and device_id is still blank
+      device_id: f.device_id || suggestDeviceId(hospital, allDeviceIds),
+    }));
+  }
+
+  function generateId() {
+    if (!form.hospital) { toast.error('Enter a hospital name first'); return; }
+    setForm((f) => ({ ...f, device_id: suggestDeviceId(form.hospital, allDeviceIds) }));
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -115,31 +172,65 @@ function DeviceFormModal({ open, onClose, onSaved, initial, onApiKey }) {
     }
   }
 
+  const isEdit = !!initial?.id;
+
   return (
     <Modal
       open={open} onClose={onClose}
-      title={initial?.id ? 'Edit Device' : 'Register Device'}
+      title={isEdit ? 'Edit Device' : 'Register New Device'}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button variant="primary" onClick={submit} loading={loading}>
-            {initial?.id ? 'Save Changes' : 'Register'}
+            {isEdit ? 'Save Changes' : 'Register Device'}
           </Button>
         </>
       }
     >
-      <form onSubmit={submit} className="space-y-3">
-        <Input
-          label="Device ID *"
-          placeholder="DEV-MNH-001"
-          value={form.device_id}
-          onChange={set('device_id')}
-          disabled={!!initial?.id}
-          hint={initial?.id ? 'Device ID cannot be changed' : undefined}
+      <form onSubmit={submit} className="space-y-4">
+        {/* Hospital first — drives device_id suggestion */}
+        <Select
+          label="Hospital"
+          value={form.hospital}
+          onChange={handleHospitalChange}
+          options={hospitals.map((h) => ({ value: h, label: h }))}
+          placeholder="— Select hospital —"
         />
+
+        {/* Device ID with auto-generate */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+            Device ID *
+          </label>
+          <div className="flex gap-2">
+            <input
+              className="input-field flex-1 font-mono"
+              placeholder="DEV-MNH-001"
+              value={form.device_id}
+              onChange={set('device_id')}
+              disabled={isEdit}
+            />
+            {!isEdit && (
+              <button
+                type="button"
+                onClick={generateId}
+                className="shrink-0 px-3 rounded-lg border transition-colors flex items-center gap-1.5 text-xs font-medium text-muted hover:text-page"
+                style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface2)' }}
+                title="Generate ID from hospital name"
+              >
+                <Wand2 className="w-3.5 h-3.5" />
+                Generate
+              </button>
+            )}
+          </div>
+          {isEdit && (
+            <p className="text-xs text-muted">Device ID cannot be changed after registration</p>
+          )}
+        </div>
+
         <Input
-          label="Name *"
-          placeholder="Dosimeter Unit A"
+          label="Display Name *"
+          placeholder="Dosimeter — CT Scan Room 1"
           value={form.name}
           onChange={set('name')}
         />
@@ -148,13 +239,6 @@ function DeviceFormModal({ open, onClose, onSaved, initial, onApiKey }) {
           placeholder="CT Scan Room 1"
           value={form.location}
           onChange={set('location')}
-        />
-        <ComboInput
-          label="Hospital"
-          placeholder="Select or type hospital name"
-          value={form.hospital}
-          onChange={set('hospital')}
-          options={hospitals}
         />
         <Input
           label="Firmware Version"
@@ -168,18 +252,47 @@ function DeviceFormModal({ open, onClose, onSaved, initial, onApiKey }) {
 }
 
 // ─── Device Detail Drawer ─────────────────────────────────────────────────────
-function DeviceDrawer({ device, open, onClose }) {
-  const [users, setUsers]     = useState([]);
-  const [loading, setLoading] = useState(false);
+function DeviceDrawer({ device, open, onClose, onEdit, isAdmin, isManager }) {
+  const toast = useToast();
+  const [users, setUsers]       = useState([]);
+  const [apiKey, setApiKey]     = useState(null);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingKey, setLoadingKey]     = useState(false);
 
   useEffect(() => {
-    if (!open || !device) return;
-    setLoading(true);
+    if (!open || !device) { setApiKey(null); return; }
+    setLoadingUsers(true);
     devicesApi.getUsers(device.id)
       .then((r) => setUsers(r.data.data?.users || []))
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => setLoadingUsers(false));
   }, [open, device]);
+
+  async function handleViewKey() {
+    setLoadingKey(true);
+    try {
+      const res = await devicesApi.getApiKey(device.id);
+      setApiKey(res.data.data.api_key);
+    } catch {
+      toast.error('Failed to load API key');
+    } finally {
+      setLoadingKey(false);
+    }
+  }
+
+  async function handleRegenKey() {
+    if (!window.confirm('Regenerate API key? The current key will stop working immediately.')) return;
+    setLoadingKey(true);
+    try {
+      const res = await devicesApi.regenerateKey(device.id);
+      setApiKey(res.data.data.api_key);
+      toast.success('API key regenerated');
+    } catch {
+      toast.error('Failed to regenerate key');
+    } finally {
+      setLoadingKey(false);
+    }
+  }
 
   if (!device) return null;
 
@@ -188,19 +301,21 @@ function DeviceDrawer({ device, open, onClose }) {
     s === 'stale'  ? <Clock className="w-3.5 h-3.5 text-amber-400" /> :
                      <WifiOff className="w-3.5 h-3.5 text-red-400" />;
 
+  const canManage = isAdmin || isManager;
+
   return (
     <Drawer
       open={open}
       onClose={onClose}
       title={device.name}
-      subtitle={`Device ID: ${device.device_id}`}
+      subtitle={`${device.device_id} · ${device.location}`}
       width="max-w-2xl"
     >
-      {/* Device meta */}
+      {/* Meta grid */}
       <div className="glass-card p-4 grid grid-cols-2 gap-3 text-xs">
         {[
-          ['Location',   device.location],
           ['Hospital',   device.hospital || '—'],
+          ['Location',   device.location],
           ['Firmware',   device.firmware_version],
           ['Last Seen',  device.last_seen ? formatRelative(device.last_seen) : 'Never'],
           ['Registered', formatDate(device.created_at)],
@@ -220,19 +335,65 @@ function DeviceDrawer({ device, open, onClose }) {
         ))}
       </div>
 
+      {/* API Key section */}
+      {canManage && (
+        <div>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">Firmware Authentication</p>
+          <div className="glass-card p-4 space-y-3">
+            {apiKey ? (
+              <ApiKeyBox apiKey={apiKey} label="Current API Key" />
+            ) : (
+              <p className="text-xs text-muted">API key is hidden. Reveal it to copy into device firmware.</p>
+            )}
+            <div className="flex gap-2">
+              {!apiKey && (
+                <Button
+                  variant="secondary"
+                  icon={Eye}
+                  size="sm"
+                  loading={loadingKey}
+                  onClick={handleViewKey}
+                >
+                  View API Key
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                icon={RefreshCw}
+                size="sm"
+                loading={loadingKey}
+                onClick={handleRegenKey}
+              >
+                Regenerate Key
+              </Button>
+              {canManage && (
+                <Button
+                  variant="secondary"
+                  icon={Edit}
+                  size="sm"
+                  onClick={() => { onClose(); onEdit(device); }}
+                >
+                  Edit Device
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Users section */}
       <div>
         <div className="flex items-center gap-2 mb-3">
           <Users className="w-4 h-4 text-primary-500" />
           <h3 className="text-sm font-semibold text-page">Users on this device</h3>
-          {!loading && <span className="text-xs text-muted">({users.length})</span>}
+          {!loadingUsers && <span className="text-xs text-muted">({users.length})</span>}
         </div>
 
-        {loading ? (
+        {loadingUsers ? (
           <div className="flex items-center justify-center py-8"><Spinner /></div>
         ) : !users.length ? (
           <div className="glass-card p-6 text-center">
-            <p className="text-sm text-muted">No exposure data logged through this device yet.</p>
+            <p className="text-sm text-muted">No exposure data has been logged through this device yet.</p>
           </div>
         ) : (
           <div className="glass-card overflow-hidden">
@@ -260,8 +421,8 @@ function DeviceDrawer({ device, open, onClose }) {
                       <Badge variant="info">{ROLE_LABELS[u.role] || u.role}</Badge>
                     </td>
                     <td className="px-4 py-2.5 text-secondary">{u.total_readings}</td>
-                    <td className="px-4 py-2.5 font-semibold text-page">
-                      {parseFloat(u.total_dose).toFixed(4)} mSv
+                    <td className="px-4 py-2.5 font-semibold text-page font-mono">
+                      {parseFloat(u.total_dose).toFixed(6)} mSv
                     </td>
                     <td className="px-4 py-2.5 text-muted">
                       {u.last_reading ? formatRelative(u.last_reading) : '—'}
@@ -281,7 +442,9 @@ function DeviceDrawer({ device, open, onClose }) {
 export default function Devices() {
   const { user } = useAuth();
   const toast = useToast();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin   = user?.role === 'admin';
+  const isManager = user?.role === 'hospital_manager';
+  const canManage = isAdmin || isManager;
 
   const [devices, setDevices]             = useState([]);
   const [pagination, setPagination]       = useState({});
@@ -290,9 +453,8 @@ export default function Devices() {
   const [formModal, setFormModal]         = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting]           = useState(false);
-  const [regening, setRegening]           = useState(null);
   const [selectedDevice, setSelectedDevice] = useState(null);
-  const [newApiKey, setNewApiKey]         = useState(null);
+  const [newApiKey, setNewApiKey]           = useState(null);
 
   const fetchDevices = useCallback(() => {
     setLoading(true);
@@ -318,21 +480,6 @@ export default function Devices() {
     }
   }
 
-  async function handleRegenKey(e, id) {
-    e.stopPropagation();
-    if (!window.confirm('Regenerate API key? The current key will stop working immediately.')) return;
-    setRegening(id);
-    try {
-      const res = await devicesApi.regenerateKey(id);
-      setNewApiKey(res.data.data.api_key);
-      toast.success('API key regenerated');
-    } catch {
-      toast.error('Failed to regenerate key');
-    } finally {
-      setRegening(null);
-    }
-  }
-
   const statusIcon = (s) =>
     s === 'online' ? <Wifi className="w-3.5 h-3.5 text-emerald-400" /> :
     s === 'stale'  ? <Clock className="w-3.5 h-3.5 text-amber-400" /> :
@@ -340,22 +487,20 @@ export default function Devices() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="page-title">Devices</h2>
           <p className="text-sm text-muted mt-0.5">
-            {pagination.total || 0} registered dosimeters · click a row to inspect
+            {pagination.total || 0} registered dosimeters · click a row to inspect &amp; manage
           </p>
         </div>
-        {isAdmin && (
+        {canManage && (
           <Button variant="primary" icon={Plus} onClick={() => setFormModal({})}>
             Register Device
           </Button>
         )}
       </div>
 
-      {/* Table */}
       <Card noPadding>
         {loading ? (
           <div className="flex items-center justify-center py-16"><Spinner size="lg" /></div>
@@ -367,7 +512,7 @@ export default function Devices() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    {['Device ID', 'Name', 'Location', 'Hospital', 'Status', 'Last Seen', 'Firmware', ...(isAdmin ? ['Actions'] : []), ''].map((h) => (
+                    {['Device ID', 'Name', 'Location', 'Hospital', 'Status', 'Last Seen', 'Firmware', ...(canManage ? [''] : []), ''].map((h) => (
                       <th key={h} className="text-left text-xs font-medium text-muted uppercase tracking-wider px-5 py-3">
                         {h}
                       </th>
@@ -396,7 +541,7 @@ export default function Devices() {
                         {d.last_seen ? formatRelative(d.last_seen) : 'Never'}
                       </td>
                       <td className="px-5 py-3 text-muted text-xs font-mono">{d.firmware_version}</td>
-                      {isAdmin && (
+                      {canManage && (
                         <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
                             <button
@@ -405,17 +550,6 @@ export default function Devices() {
                               title="Edit"
                             >
                               <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => handleRegenKey(e, d.id)}
-                              disabled={regening === d.id}
-                              className="p-1.5 rounded transition-colors text-muted hover:text-amber-400 hover:bg-amber-500/10"
-                              title="Regenerate API Key"
-                            >
-                              {regening === d.id
-                                ? <Spinner size="sm" />
-                                : <Key className="w-3.5 h-3.5" />
-                              }
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); setConfirmDelete(d.id); }}
@@ -436,10 +570,7 @@ export default function Devices() {
               </table>
             </div>
             {pagination.pages > 1 && (
-              <div
-                className="flex items-center justify-between px-5 py-3"
-                style={{ borderTop: '1px solid var(--border-color)' }}
-              >
+              <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: '1px solid var(--border-color)' }}>
                 <p className="text-xs text-muted">Page {pagination.page} of {pagination.pages}</p>
                 <div className="flex gap-2">
                   <Button variant="secondary" size="xs" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</Button>
@@ -463,6 +594,9 @@ export default function Devices() {
         device={selectedDevice}
         open={!!selectedDevice}
         onClose={() => setSelectedDevice(null)}
+        onEdit={(d) => { setSelectedDevice(null); setFormModal(d); }}
+        isAdmin={isAdmin}
+        isManager={isManager}
       />
 
       <ApiKeyModal

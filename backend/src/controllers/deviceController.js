@@ -136,6 +136,18 @@ function regenerateApiKey(req, res) {
   return success(res, { api_key }, 'API key regenerated. Save it — it will not be shown again.');
 }
 
+function getApiKey(req, res) {
+  const db = getDb();
+  const device = db.prepare('SELECT id, device_id, hospital, api_key FROM devices WHERE id = ?').get(req.params.id);
+  if (!device) return notFound(res, 'Device not found');
+
+  if (req.user.role === 'hospital_manager' && device.hospital !== req.user.hospital) {
+    return notFound(res, 'Device not found');
+  }
+
+  return success(res, { device_id: device.device_id, api_key: device.api_key });
+}
+
 function deleteDevice(req, res) {
   const db = getDb();
   const device = db.prepare('SELECT id, device_id, hospital FROM devices WHERE id = ?').get(req.params.id);
@@ -177,4 +189,4 @@ function getDeviceUsers(req, res) {
   return success(res, { device_id: device.device_id, users });
 }
 
-module.exports = { listDevices, getDevice, createDevice, updateDevice, regenerateApiKey, deleteDevice, getDeviceUsers };
+module.exports = { listDevices, getDevice, getApiKey, createDevice, updateDevice, regenerateApiKey, deleteDevice, getDeviceUsers };

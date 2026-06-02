@@ -11,7 +11,8 @@ import Spinner from '../components/ui/Spinner';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import ExposureTrendChart from '../components/charts/ExposureTrendChart';
-import { formatDateTime, formatDoseShort } from '../utils/formatters';
+import { formatDateTime, formatDoseInUnit } from '../utils/formatters';
+import { useUnit } from '../context/UnitContext';
 
 const PAGE_SIZE = 20;
 
@@ -71,6 +72,7 @@ export default function ExposureLogs() {
     }
   }
 
+  const { unit } = useUnit();
   const isAdmin = user?.role === 'admin';
   const hasFilters = search || startDate || endDate || anomalyOnly;
 
@@ -186,7 +188,7 @@ export default function ExposureLogs() {
                         <p className="text-xs font-mono text-primary-500 mt-0.5">{log.card_number}</p>
                       </td>
                       <td className="px-5 py-3">
-                        <span className="font-semibold text-page">{formatDoseShort(log.radiation_value)}</span>
+                        <span className="font-semibold text-page font-mono">{formatDoseInUnit(log.radiation_value, unit)}</span>
                       </td>
                       <td className="px-5 py-3">
                         <p className="text-sm text-secondary">{log.device_name || log.device_id}</p>

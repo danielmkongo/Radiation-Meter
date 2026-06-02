@@ -12,7 +12,8 @@ import DevicePieChart from '../components/charts/DevicePieChart';
 import Card from '../components/ui/Card';
 import Spinner from '../components/ui/Spinner';
 import Badge from '../components/ui/Badge';
-import { formatDoseShort, formatRelative } from '../utils/formatters';
+import { formatDoseInUnit, formatRelative } from '../utils/formatters';
+import { useUnit } from '../context/UnitContext';
 import { getDoseStatus } from '../utils/thresholdHelpers';
 import { DOSE_LIMITS } from '../utils/constants';
 
@@ -47,6 +48,7 @@ export default function Dashboard() {
 
   if (!data) return null;
 
+  const { unit } = useUnit();
   const role = user?.role;
 
   // ── Radiologist Dashboard ─────────────────────────────────────────────────
@@ -84,7 +86,7 @@ export default function Dashboard() {
                   <div key={r.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-surface-700/30 transition-colors">
                     <Zap className="w-3.5 h-3.5 text-primary-400 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-slate-300 font-medium">{formatDoseShort(r.radiation_value)}</p>
+                      <p className="text-xs font-semibold font-mono text-page">{formatDoseInUnit(r.radiation_value, unit)}</p>
                       <p className="text-[11px] text-slate-500 truncate">{r.device_name} · {r.location}</p>
                     </div>
                     <div className="text-right shrink-0">
@@ -129,8 +131,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <StatsCard
           title="Today's Total Dose"
-          value={data.totals?.today != null ? parseFloat(data.totals.today).toFixed(4) : '0.0000'}
-          unit="mSv"
+          value={data.totals?.today != null ? (unit === 'µSv' ? (parseFloat(data.totals.today) * 1000).toFixed(3) : parseFloat(data.totals.today).toFixed(6)) : '0.000000'}
+          unit={unit}
           icon={Zap}
           color="primary"
         />
@@ -226,7 +228,7 @@ export default function Dashboard() {
                       <td className="py-2 px-3 text-slate-400 font-mono text-xs">{u.card_number}</td>
                       <td className="py-2 px-3 text-slate-400">{u.department || '—'}</td>
                       <td className="py-2 px-3 text-slate-400">{u.hospital || '—'}</td>
-                      <td className="py-2 px-3 font-semibold text-page">{parseFloat(u.annual_dose).toFixed(4)} mSv</td>
+                      <td className="py-2 px-3 font-semibold text-page font-mono">{formatDoseInUnit(u.annual_dose, unit)}</td>
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-2">
                           <div className="h-1.5 w-20 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-surface3)' }}>

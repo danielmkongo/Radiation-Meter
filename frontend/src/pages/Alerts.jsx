@@ -8,7 +8,8 @@ import Badge from '../components/ui/Badge';
 import Select from '../components/ui/Select';
 import Spinner from '../components/ui/Spinner';
 import EmptyState from '../components/ui/EmptyState';
-import { formatDateTime, formatRelative } from '../utils/formatters';
+import { formatDateTime, formatRelative, formatDoseInUnit } from '../utils/formatters';
+import { useUnit } from '../context/UnitContext';
 
 const PAGE_SIZE = 30;
 
@@ -21,6 +22,7 @@ const CATEGORY_LABELS = {
 
 export default function Alerts() {
   const toast = useToast();
+  const { unit } = useUnit();
   const [alerts, setAlerts]     = useState([]);
   const [pagination, setPagination] = useState({});
   const [counts, setCounts]     = useState({ critical: 0, warning: 0, total: 0 });
@@ -194,9 +196,9 @@ export default function Alerts() {
                           <span className="text-xs text-muted">{alert.full_name}</span>
                         )}
                         {alert.radiation_value != null && (
-                          <span className="text-xs text-muted">
-                            {parseFloat(alert.radiation_value).toFixed(4)} mSv
-                            {alert.threshold_value ? ` · limit ${alert.threshold_value} mSv` : ''}
+                          <span className="text-xs text-muted font-mono">
+                            {formatDoseInUnit(alert.radiation_value, unit)}
+                            {alert.threshold_value ? ` · limit ${formatDoseInUnit(alert.threshold_value, unit)}` : ''}
                           </span>
                         )}
                       </div>

@@ -79,7 +79,7 @@ X-API-Key: rm_dev001apikey12345678901234
 |-------|------|----------|-------------|-------------|
 | `device_id` | string | Yes | Must match registered device | The hardware device's ID |
 | `card_number` | string | Yes | Must match a registered radiologist | The worker's dosimeter card number (read from NFC/RFID/barcode) |
-| `radiation_value` | float | Yes | >= 0.0 | Accumulated dose in **millisieverts (mSv)** |
+| `radiation_value` | float | Yes | >= 0.0 | Dose reading in **millisieverts (mSv)** — send the raw mSv value, no conversion needed |
 | `timestamp` | string | No | ISO 8601 UTC | Time the reading was taken. Defaults to server receive time if omitted. Include this if the device has an RTC. |
 
 ### Successful Response — `201 Created`
