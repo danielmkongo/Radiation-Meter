@@ -23,7 +23,7 @@ export default function Header({ alertCount = 0, onMenuOpen }) {
   const { isDark, toggle } = useTheme();
   const { unit, toggle: toggleUnit } = useUnit();
 
-  const title = PAGE_TITLES[pathname] || 'RadiGuard';
+  const title = PAGE_TITLES[pathname] || 'RADGUARD';
 
   const btnClass = 'p-2 rounded-lg transition-colors';
   const btnStyle = { color: 'var(--text-muted)' };

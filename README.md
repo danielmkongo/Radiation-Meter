@@ -1,4 +1,4 @@
-# RadiGuard — Radiation Exposure Monitoring Platform
+# RADGUARD — Radiation Exposure Monitoring Platform
 
 Regulatory-grade radiation exposure monitoring platform for medical facilities, aligned with **Tanzania Atomic Energy Commission (TAEC)** regulations and **WHO/ICRP** international safety standards.
 

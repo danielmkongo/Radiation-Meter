@@ -36,7 +36,7 @@ export default function Sidebar({ alertCount = 0, open = false, onClose }) {
               <Atom className="w-5 h-5 text-white" />
             </div>
             <div>
-              <span className="font-semibold text-page text-sm">RadiGuard</span>
+              <span className="font-semibold text-page text-sm">RADGUARD</span>
               <p className="text-[10px] text-muted uppercase tracking-wider">Monitoring Platform</p>
             </div>
           </div>

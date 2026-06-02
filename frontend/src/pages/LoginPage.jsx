@@ -45,7 +45,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary-600 shadow-xl shadow-primary-600/25 mb-4">
             <Atom className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-page">RadiGuard</h1>
+          <h1 className="text-2xl font-bold text-page">RADGUARD</h1>
           <p className="text-sm text-muted mt-1">Radiation Exposure Monitoring Platform</p>
           <div className="flex items-center justify-center gap-1.5 mt-2">
             <Shield className="w-3 h-3 text-primary-500" />
